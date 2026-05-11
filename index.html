@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DiffMaster - 内容对比工具</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <h1 class="logo">DiffMaster</h1>
+            <span class="subtitle">内容对比工具</span>
+        </div>
+        <div class="header-controls">
+            <div class="encoding-select">
+                <label for="globalEncoding">编码:</label>
+                <select id="globalEncoding">
+                    <option value="auto">自动检测</option>
+                    <option value="utf-8">UTF-8</option>
+                    <option value="utf-16">UTF-16</option>
+                    <option value="utf-16le">UTF-16LE</option>
+                    <option value="utf-16be">UTF-16BE</option>
+                    <option value="utf-32">UTF-32</option>
+                    <option value="gbk">GBK</option>
+                    <option value="gb2312">GB2312</option>
+                    <option value="gb18030">GB18030</option>
+                    <option value="big5">Big5</option>
+                    <option value="iso-8859-1">ISO-8859-1</option>
+                    <option value="windows-1252">Windows-1252</option>
+                    <option value="euc-kr">EUC-KR</option>
+                    <option value="euc-jp">EUC-JP</option>
+                    <option value="ascii">ASCII</option>
+                </select>
+            </div>
+            <button id="themeToggle" class="theme-toggle" title="切换主题">
+                <span class="theme-toggle-icon" id="themeIcon">☀️</span>
+                <span id="themeLabel">Light</span>
+            </button>
+            <button id="btnCompare" class="btn btn-primary">对比</button>
+            <button id="btnSwap" class="btn btn-secondary" title="交换左右内容">⇄ 交换</button>
+            <button id="btnClear" class="btn btn-secondary">清空</button>
+            <button id="btnHistory" class="btn btn-secondary" title="历史记录">📋 历史</button>
+        </div>
+    </header>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar" id="statsBar">
+        <span class="stat-item stat-added"><span class="stat-icon">✓</span> 新增 <strong id="statAdded">0</strong></span>
+        <span class="stat-item stat-deleted"><span class="stat-icon">✗</span> 删除 <strong id="statDeleted">0</strong></span>
+        <span class="stat-item stat-modified"><span class="stat-icon">○</span> 修改 <strong id="statModified">0</strong></span>
+        <span class="stat-item stat-total">共 <strong id="statTotal">0</strong> 处差异</span>
+    </div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Input Panel: Original -->
+        <div class="input-panel" id="originalPanel">
+            <div class="panel-header">
+                <span class="panel-title">Original</span>
+                <div class="panel-controls">
+                    <div class="encoding-select">
+                        <label>编码:</label>
+                        <select class="panel-encoding" data-side="original">
+                            <option value="auto">自动检测</option>
+                            <option value="utf-8">UTF-8</option>
+                            <option value="utf-16">UTF-16</option>
+                            <option value="utf-16le">UTF-16LE</option>
+                            <option value="utf-16be">UTF-16BE</option>
+                            <option value="utf-32">UTF-32</option>
+                            <option value="gbk">GBK</option>
+                            <option value="gb2312">GB2312</option>
+                            <option value="gb18030">GB18030</option>
+                            <option value="big5">Big5</option>
+                            <option value="iso-8859-1">ISO-8859-1</option>
+                            <option value="windows-1252">Windows-1252</option>
+                            <option value="euc-kr">EUC-KR</option>
+                            <option value="euc-jp">EUC-JP</option>
+                            <option value="ascii">ASCII</option>
+                        </select>
+                    </div>
+                    <div class="sort-controls">
+                        <select class="sort-select" id="originalSort" data-side="original">
+                            <option value="default">排序: 默认</option>
+                            <option value="asc">排序: 升序 A→Z</option>
+                            <option value="desc">排序: 降序 Z→A</option>
+                        </select>
+                    </div>
+                    <button class="btn-icon btn-upload" data-side="original" title="上传文件">📁</button>
+                    <input type="file" class="file-input" data-side="original" hidden>
+                </div>
+            </div>
+            <div class="editor-wrap">
+                <div class="line-numbers" id="originalLineNums"></div>
+                <textarea id="originalText" class="editor" placeholder="粘贴或输入 Original 内容...&#10;支持拖拽上传文件"></textarea>
+            </div>
+        </div>
+
+        <!-- Resize Handle 1 -->
+        <div class="resize-handle" id="resizeHandle1"></div>
+
+        <!-- Diff Output Panel -->
+        <div class="diff-panel" id="diffPanel">
+            <div class="panel-header">
+                <span class="panel-title">差异对比</span>
+                <div class="panel-controls">
+                    <div class="diff-mode-select">
+                        <select id="diffMode">
+                            <option value="lines">行对比</option>
+                            <option value="words">词对比</option>
+                            <option value="chars">字符对比</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="diff-output-wrap">
+                <div class="diff-output" id="diffOutput">
+                    <div class="diff-placeholder">
+                        <p>在左右两侧输入内容，点击「对比」按钮查看差异</p>
+                        <p>支持 JSON、纯文本、XML、YAML、代码等格式</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resize Handle 2 -->
+        <div class="resize-handle" id="resizeHandle2"></div>
+
+        <!-- Input Panel: Modified -->
+        <div class="input-panel" id="modifiedPanel">
+            <div class="panel-header">
+                <span class="panel-title">Modified</span>
+                <div class="panel-controls">
+                    <div class="encoding-select">
+                        <label>编码:</label>
+                        <select class="panel-encoding" data-side="modified">
+                            <option value="auto">自动检测</option>
+                            <option value="utf-8">UTF-8</option>
+                            <option value="utf-16">UTF-16</option>
+                            <option value="utf-16le">UTF-16LE</option>
+                            <option value="utf-16be">UTF-16BE</option>
+                            <option value="utf-32">UTF-32</option>
+                            <option value="gbk">GBK</option>
+                            <option value="gb2312">GB2312</option>
+                            <option value="gb18030">GB18030</option>
+                            <option value="big5">Big5</option>
+                            <option value="iso-8859-1">ISO-8859-1</option>
+                            <option value="windows-1252">Windows-1252</option>
+                            <option value="euc-kr">EUC-KR</option>
+                            <option value="euc-jp">EUC-JP</option>
+                            <option value="ascii">ASCII</option>
+                        </select>
+                    </div>
+                    <div class="sort-controls">
+                        <select class="sort-select" id="modifiedSort" data-side="modified">
+                            <option value="default">排序: 默认</option>
+                            <option value="asc">排序: 升序 A→Z</option>
+                            <option value="desc">排序: 降序 Z→A</option>
+                        </select>
+                    </div>
+                    <button class="btn-icon btn-upload" data-side="modified" title="上传文件">📁</button>
+                    <input type="file" class="file-input" data-side="modified" hidden>
+                </div>
+            </div>
+            <div class="editor-wrap">
+                <div class="line-numbers" id="modifiedLineNums"></div>
+                <textarea id="modifiedText" class="editor" placeholder="粘贴或输入 Modified 内容...&#10;支持拖拽上传文件"></textarea>
+            </div>
+        </div>
+    </main>
+
+    <!-- History Modal -->
+    <div class="modal-overlay" id="historyModal" style="display:none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>历史记录</h2>
+                <button class="btn-icon modal-close" id="historyClose">✕</button>
+            </div>
+            <div class="modal-body" id="historyList">
+                <p class="empty-state">暂无历史记录</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" id="historyClearAll">清空全部</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast notification -->
+    <div class="toast" id="toast" style="display:none;"></div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/diff@5.2.0/dist/diff.min.js"></script>
+    <script>
+        if (typeof Diff === 'undefined') {
+            document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#cf222e;font-size:18px;padding:20px;text-align:center">核心依赖加载失败，请检查网络连接后刷新页面</div>';
+            throw new Error('diff library failed to load');
+        }
+    </script>
+    <script src="js/encoding.js"></script>
+    <script src="js/diff-engine.js"></script>
+    <script src="js/sorting.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
