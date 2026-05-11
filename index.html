@@ -45,6 +45,58 @@
         </div>
     </header>
 
+    <!-- Toolbar -->
+    <div class="toolbar" id="toolbar">
+        <div class="toolbar-group">
+            <label class="toolbar-checkbox"><input type="checkbox" id="optIgnoreWS"> 忽略空白</label>
+            <label class="toolbar-checkbox"><input type="checkbox" id="optIgnoreCase"> 忽略大小写</label>
+        </div>
+        <div class="toolbar-group">
+            <label class="toolbar-label">视图:</label>
+            <select id="viewMode">
+                <option value="unified">统一</option>
+                <option value="side-by-side">并排</option>
+            </select>
+        </div>
+        <div class="toolbar-group">
+            <label class="toolbar-label">语言:</label>
+            <select id="syntaxLang">
+                <option value="auto">自动检测</option>
+                <option value="plaintext">纯文本</option>
+                <option value="javascript">JavaScript</option>
+                <option value="typescript">TypeScript</option>
+                <option value="python">Python</option>
+                <option value="java">Java</option>
+                <option value="cpp">C/C++</option>
+                <option value="csharp">C#</option>
+                <option value="go">Go</option>
+                <option value="rust">Rust</option>
+                <option value="php">PHP</option>
+                <option value="ruby">Ruby</option>
+                <option value="sql">SQL</option>
+                <option value="html">HTML</option>
+                <option value="css">CSS</option>
+                <option value="json">JSON</option>
+                <option value="xml">XML</option>
+                <option value="yaml">YAML</option>
+                <option value="markdown">Markdown</option>
+                <option value="shell">Shell</option>
+            </select>
+        </div>
+        <div class="toolbar-group toolbar-actions">
+            <div class="dropdown" id="exportDropdown">
+                <button class="btn btn-secondary" id="btnExport">📥 导出</button>
+                <div class="dropdown-menu" id="exportMenu">
+                    <button data-action="export-html">导出 HTML</button>
+                    <button data-action="export-text">导出纯文本</button>
+                    <button data-action="export-clipboard">复制到剪贴板</button>
+                </div>
+            </div>
+            <button class="btn btn-secondary" id="btnShare" title="生成分享链接">🔗 分享</button>
+            <button class="btn btn-secondary" id="btnMergeMode" title="合并模式">🔀 合并</button>
+        </div>
+    </div>
+
     <!-- Stats Bar -->
     <div class="stats-bar" id="statsBar">
         <span class="stat-item stat-added"><span class="stat-icon">✓</span> 新增 <strong id="statAdded">0</strong></span>
@@ -54,7 +106,7 @@
     </div>
 
     <!-- Main Content -->
-    <main class="main-content">
+    <main class="main-content" id="mainContent">
         <!-- Input Panel: Original -->
         <div class="input-panel" id="originalPanel">
             <div class="panel-header">
@@ -62,23 +114,7 @@
                 <div class="panel-controls">
                     <div class="encoding-select">
                         <label>编码:</label>
-                        <select class="panel-encoding" data-side="original">
-                            <option value="auto">自动检测</option>
-                            <option value="utf-8">UTF-8</option>
-                            <option value="utf-16">UTF-16</option>
-                            <option value="utf-16le">UTF-16LE</option>
-                            <option value="utf-16be">UTF-16BE</option>
-                            <option value="utf-32">UTF-32</option>
-                            <option value="gbk">GBK</option>
-                            <option value="gb2312">GB2312</option>
-                            <option value="gb18030">GB18030</option>
-                            <option value="big5">Big5</option>
-                            <option value="iso-8859-1">ISO-8859-1</option>
-                            <option value="windows-1252">Windows-1252</option>
-                            <option value="euc-kr">EUC-KR</option>
-                            <option value="euc-jp">EUC-JP</option>
-                            <option value="ascii">ASCII</option>
-                        </select>
+                        <select class="panel-encoding" data-side="original"></select>
                     </div>
                     <div class="sort-controls">
                         <select class="sort-select" id="originalSort" data-side="original">
@@ -89,6 +125,22 @@
                     </div>
                     <button class="btn-icon btn-upload" data-side="original" title="上传文件">📁</button>
                     <input type="file" class="file-input" data-side="original" hidden>
+                </div>
+            </div>
+            <!-- Find/Replace Bar -->
+            <div class="find-bar" id="findBarOriginal" style="display:none;">
+                <div class="find-row">
+                    <input type="text" class="find-input" id="findInputOriginal" placeholder="查找...">
+                    <span class="find-count" id="findCountOriginal">0/0</span>
+                    <button class="btn-icon find-prev" data-side="original" title="上一个">▲</button>
+                    <button class="btn-icon find-next" data-side="original" title="下一个">▼</button>
+                    <label class="toolbar-checkbox find-case"><input type="checkbox" id="findCaseOriginal"> Aa</label>
+                    <button class="btn-icon find-close" data-side="original" title="关闭">✕</button>
+                </div>
+                <div class="find-row">
+                    <input type="text" class="find-input" id="replaceInputOriginal" placeholder="替换...">
+                    <button class="btn btn-secondary btn-sm" id="replaceOneOriginal">替换</button>
+                    <button class="btn btn-secondary btn-sm" id="replaceAllOriginal">全部替换</button>
                 </div>
             </div>
             <div class="editor-wrap">
@@ -134,23 +186,7 @@
                 <div class="panel-controls">
                     <div class="encoding-select">
                         <label>编码:</label>
-                        <select class="panel-encoding" data-side="modified">
-                            <option value="auto">自动检测</option>
-                            <option value="utf-8">UTF-8</option>
-                            <option value="utf-16">UTF-16</option>
-                            <option value="utf-16le">UTF-16LE</option>
-                            <option value="utf-16be">UTF-16BE</option>
-                            <option value="utf-32">UTF-32</option>
-                            <option value="gbk">GBK</option>
-                            <option value="gb2312">GB2312</option>
-                            <option value="gb18030">GB18030</option>
-                            <option value="big5">Big5</option>
-                            <option value="iso-8859-1">ISO-8859-1</option>
-                            <option value="windows-1252">Windows-1252</option>
-                            <option value="euc-kr">EUC-KR</option>
-                            <option value="euc-jp">EUC-JP</option>
-                            <option value="ascii">ASCII</option>
-                        </select>
+                        <select class="panel-encoding" data-side="modified"></select>
                     </div>
                     <div class="sort-controls">
                         <select class="sort-select" id="modifiedSort" data-side="modified">
@@ -163,12 +199,111 @@
                     <input type="file" class="file-input" data-side="modified" hidden>
                 </div>
             </div>
+            <!-- Find/Replace Bar -->
+            <div class="find-bar" id="findBarModified" style="display:none;">
+                <div class="find-row">
+                    <input type="text" class="find-input" id="findInputModified" placeholder="查找...">
+                    <span class="find-count" id="findCountModified">0/0</span>
+                    <button class="btn-icon find-prev" data-side="modified" title="上一个">▲</button>
+                    <button class="btn-icon find-next" data-side="modified" title="下一个">▼</button>
+                    <label class="toolbar-checkbox find-case"><input type="checkbox" id="findCaseModified"> Aa</label>
+                    <button class="btn-icon find-close" data-side="modified" title="关闭">✕</button>
+                </div>
+                <div class="find-row">
+                    <input type="text" class="find-input" id="replaceInputModified" placeholder="替换...">
+                    <button class="btn btn-secondary btn-sm" id="replaceOneModified">替换</button>
+                    <button class="btn btn-secondary btn-sm" id="replaceAllModified">全部替换</button>
+                </div>
+            </div>
             <div class="editor-wrap">
                 <div class="line-numbers" id="modifiedLineNums"></div>
                 <textarea id="modifiedText" class="editor" placeholder="粘贴或输入 Modified 内容...&#10;支持拖拽上传文件"></textarea>
             </div>
         </div>
     </main>
+
+    <!-- Image Diff Section (hidden by default) -->
+    <div class="image-diff-section" id="imageDiffSection" style="display:none;">
+        <div class="image-diff-header">
+            <span class="panel-title">图片对比</span>
+            <div class="panel-controls">
+                <select id="imageDiffMode">
+                    <option value="side-by-side">并排</option>
+                    <option value="overlay">叠加</option>
+                    <option value="swipe">滑动</option>
+                    <option value="diff">差异</option>
+                </select>
+                <button class="btn btn-secondary" id="btnImageCompare">对比</button>
+            </div>
+        </div>
+        <div class="image-diff-body">
+            <div class="image-upload-zone" id="imageUploadOriginal">
+                <div class="upload-placeholder">📁 拖放或点击上传 Original 图片</div>
+                <input type="file" accept="image/*" hidden>
+                <canvas class="image-canvas" style="display:none;"></canvas>
+            </div>
+            <div class="image-upload-zone" id="imageUploadModified">
+                <div class="upload-placeholder">📁 拖放或点击上传 Modified 图片</div>
+                <input type="file" accept="image/*" hidden>
+                <canvas class="image-canvas" style="display:none;"></canvas>
+            </div>
+        </div>
+        <div class="image-diff-result" id="imageDiffResult" style="display:none;">
+            <canvas id="imageDiffCanvas"></canvas>
+            <div class="image-swipe-handle" id="imageSwipeHandle" style="display:none;"></div>
+        </div>
+    </div>
+
+    <!-- 3-Way Merge Section (hidden by default) -->
+    <div class="merge3-section" id="merge3Section" style="display:none;">
+        <div class="merge3-header">
+            <span class="panel-title">三方合并</span>
+            <div class="panel-controls">
+                <button class="btn btn-primary" id="btnMerge3">合并</button>
+                <button class="btn btn-secondary" id="btnCopyMerged">复制结果</button>
+            </div>
+        </div>
+        <div class="merge3-body">
+            <div class="merge3-panel">
+                <div class="panel-header"><span class="panel-title">Base (基础)</span></div>
+                <textarea id="merge3Base" class="editor merge3-editor" placeholder="粘贴 Base 版本..."></textarea>
+            </div>
+            <div class="merge3-panel">
+                <div class="panel-header"><span class="panel-title">Ours ( ours)</span></div>
+                <textarea id="merge3Ours" class="editor merge3-editor" placeholder="粘贴 Ours 版本..."></textarea>
+            </div>
+            <div class="merge3-panel">
+                <div class="panel-header"><span class="panel-title">Theirs (theirs)</span></div>
+                <textarea id="merge3Theirs" class="editor merge3-editor" placeholder="粘贴 Theirs 版本..."></textarea>
+            </div>
+        </div>
+        <div class="merge3-result" id="merge3Result" style="display:none;">
+            <div class="panel-header"><span class="panel-title">合并结果</span></div>
+            <div class="merge3-output" id="merge3Output"></div>
+        </div>
+    </div>
+
+    <!-- Merge Result Panel (inline merge mode) -->
+    <div class="merge-panel" id="mergePanel" style="display:none;">
+        <div class="panel-header">
+            <span class="panel-title">合并结果</span>
+            <div class="panel-controls">
+                <button class="btn btn-secondary" id="btnCopyMergeResult">复制结果</button>
+                <button class="btn btn-secondary" id="btnDownloadMergeResult">下载</button>
+                <button class="btn btn-secondary" id="btnCloseMerge">关闭</button>
+            </div>
+        </div>
+        <div class="merge-output-wrap">
+            <textarea id="mergeOutput" class="editor merge-output" readonly placeholder="点击差异区域的 ✓/✗ 按钮来接受或拒绝修改..."></textarea>
+        </div>
+    </div>
+
+    <!-- Mode Tabs -->
+    <div class="mode-tabs" id="modeTabs">
+        <button class="mode-tab active" data-mode="text">📝 文本对比</button>
+        <button class="mode-tab" data-mode="image">🖼️ 图片对比</button>
+        <button class="mode-tab" data-mode="merge3">🔀 三方合并</button>
+    </div>
 
     <!-- History Modal -->
     <div class="modal-overlay" id="historyModal" style="display:none;">
@@ -190,10 +325,21 @@
     <div class="toast" id="toast" style="display:none;"></div>
 
     <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/diff@5.2.0/dist/diff.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/diff@5.2.0/dist/diff.min.js"
+            integrity="sha384-lJJVaUgxmk/PVfQnAsGN1QuJZrE+n6bg2EMu33yVZOJ2av/3UzTHbmnPCI7ENJYa"
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"
+            integrity="sha384-5yxvCQJ/5mlSMbO4D+C7gCRI73t5QwCCeIacEpdHGNmUaSw1Lcc/yBOkvouwUYoO"
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"
+            integrity="sha384-0d+Gr7vM4Drod8E3hXKgciWJSWbjD/opKLLygI9ktiWbuvlDwQLzU46wJ9s5gsp7"
+            crossorigin="anonymous" defer></script>
     <script>
         if (typeof Diff === 'undefined') {
-            document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#cf222e;font-size:18px;padding:20px;text-align:center">核心依赖加载失败，请检查网络连接后刷新页面</div>';
+            var overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;font-family:sans-serif;color:#cf222e;font-size:18px;padding:20px;text-align:center;background:#fff';
+            overlay.textContent = '核心依赖加载失败，请检查网络连接后刷新页面';
+            document.body.prepend(overlay);
             throw new Error('diff library failed to load');
         }
     </script>

@@ -1,21 +1,21 @@
 /**
  * JSON Sorting Module
- * Detects JSON arrays, extracts keys, provides type-aware sorting
+ * Detects JSON (arrays and objects), extracts keys, provides type-aware sorting
  */
 const JsonSorter = (() => {
 
     /**
-     * Check if text is a JSON array and return parsed result
+     * Try to parse text as JSON, auto-cleaning invisible characters
      */
-    function tryParseJsonArray(text) {
+    function tryParseJson(text) {
+        const cleaned = text.trim().replace(/[\uFEFF\u200B\u200C\u200D]/g, '');
         try {
-            const parsed = JSON.parse(text);
-            if (Array.isArray(parsed)) {
-                return { isArray: true, data: parsed };
-            }
-            return { isArray: false, data: parsed };
+            const parsed = JSON.parse(cleaned);
+            const type = Array.isArray(parsed) ? 'array'
+                : (parsed && typeof parsed === 'object' ? 'object' : 'primitive');
+            return { success: true, data: parsed, type };
         } catch (e) {
-            return { isArray: false, data: null, error: e.message };
+            return { success: false, data: null, type: null, error: e.message };
         }
     }
 
@@ -107,22 +107,80 @@ const JsonSorter = (() => {
     }
 
     /**
+     * Recursively sort object keys alphabetically
+     */
+    function sortObjectKeys(obj, direction = 'asc') {
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
+
+        const sorted = {};
+        const keys = Object.keys(obj).sort((a, b) => {
+            const cmp = a.localeCompare(b, 'zh-CN');
+            return direction === 'asc' ? cmp : -cmp;
+        });
+        for (const key of keys) {
+            const val = obj[key];
+            // Recursively sort nested objects
+            if (val && typeof val === 'object' && !Array.isArray(val)) {
+                sorted[key] = sortObjectKeys(val, direction);
+            } else if (Array.isArray(val)) {
+                sorted[key] = sortArrayItems(val, direction);
+            } else {
+                sorted[key] = val;
+            }
+        }
+        return sorted;
+    }
+
+    /**
+     * Recursively sort array items (apply sortObjectKeys to object elements)
+     */
+    function sortArrayItems(arr, direction = 'asc') {
+        return arr.map(item => {
+            if (item && typeof item === 'object' && !Array.isArray(item)) {
+                return sortObjectKeys(item, direction);
+            } else if (Array.isArray(item)) {
+                return sortArrayItems(item, direction);
+            }
+            return item;
+        });
+    }
+
+    /**
      * Apply sort and return formatted JSON string
+     * Supports both JSON arrays and JSON objects
      */
     function applySort(text, key, direction = 'asc') {
-        const { isArray, data, error } = tryParseJsonArray(text);
-        if (!isArray || error) return { success: false, error: error || 'Not a JSON array' };
+        const { success, data, type, error } = tryParseJson(text);
+        if (!success) return { success: false, error };
 
-        const sorted = key ? sortArray(data, key, direction) : sortArray(data, null, direction);
-        return {
-            success: true,
-            result: JSON.stringify(sorted, null, 2),
-            data: sorted
-        };
+        if (type === 'array') {
+            const sorted = key ? sortArray(data, key, direction) : sortArray(data, null, direction);
+            // Also recursively sort keys in object elements
+            const processed = sortArrayItems(sorted, direction);
+            return {
+                success: true,
+                result: JSON.stringify(processed, null, 2),
+                data: processed,
+                type: 'array'
+            };
+        }
+
+        if (type === 'object') {
+            const sorted = sortObjectKeys(data, direction);
+            return {
+                success: true,
+                result: JSON.stringify(sorted, null, 2),
+                data: sorted,
+                type: 'object'
+            };
+        }
+
+        // Primitive value — nothing to sort
+        return { success: false, error: 'Primitive value cannot be sorted as JSON' };
     }
 
     return {
-        tryParseJsonArray, extractKeys, compareValues,
-        sortArray, sortArrayNested, applySort
+        tryParseJson, extractKeys, compareValues,
+        sortArray, sortArrayNested, sortObjectKeys, applySort
     };
 })();

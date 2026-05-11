@@ -71,7 +71,9 @@ const Storage = (() => {
         const records = getHistory().filter(r => r.id !== id);
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-        } catch {}
+        } catch (e) {
+            console.warn('Failed to save after delete:', e.message);
+        }
         return records;
     }
 

@@ -146,7 +146,7 @@ body {
     color: var(--text-primary);
     font-size: 13px;
     cursor: pointer;
-    transition: all var(--transition);
+    transition: background var(--transition), border-color var(--transition), color var(--transition);
     white-space: nowrap;
     font-family: var(--font-sans);
 }
@@ -189,7 +189,7 @@ body {
     color: var(--text-secondary);
     font-size: 14px;
     cursor: pointer;
-    transition: all var(--transition);
+    transition: background var(--transition), border-color var(--transition), color var(--transition);
     line-height: 1;
 }
 .btn-icon:hover {
@@ -380,6 +380,8 @@ select:focus {
     font-family: var(--font-mono);
     font-size: 13px;
     line-height: 1.5;
+    padding: 8px 0;
+    contain: layout style paint;
 }
 .diff-placeholder {
     display: flex;
@@ -398,8 +400,9 @@ select:focus {
 /* ========== Diff Row Layout ========== */
 .diff-row {
     display: flex;
-    min-height: 20px;
-    border-bottom: 1px solid var(--border-light);
+    height: 19.5px;
+    box-sizing: content-box;
+    box-shadow: 0 -1px 0 var(--border-light) inset;
 }
 .diff-row:hover {
     background: rgba(88, 166, 255, 0.04);
@@ -420,20 +423,23 @@ select:focus {
 .diff-line-num {
     width: 40px;
     min-width: 40px;
-    padding: 1px 6px;
+    padding: 0 6px;
     text-align: right;
     color: var(--text-muted);
     user-select: none;
     border-right: 1px solid var(--border-light);
     font-size: 11px;
     flex-shrink: 0;
+    line-height: 19.5px;
 }
 .diff-line-content {
     flex: 1;
-    padding: 1px 12px;
-    white-space: pre-wrap;
+    padding: 0 12px;
+    white-space: pre;
     word-break: break-all;
     min-width: 0;
+    overflow: hidden;
+    line-height: 19.5px;
 }
 .diff-line-indicator {
     width: 20px;
@@ -441,6 +447,7 @@ select:focus {
     text-align: center;
     font-weight: 700;
     flex-shrink: 0;
+    line-height: 19.5px;
 }
 
 /* Diff line types */
@@ -487,14 +494,19 @@ select:focus {
     background: var(--bg-tertiary);
     border: 1px dashed var(--border-color);
     border-radius: var(--radius-sm);
-    margin: 2px 12px 2px 52px;
-    padding: 4px 12px;
+    margin: 0 12px 0 52px;
+    padding: 0 12px;
     cursor: pointer;
     color: var(--text-muted);
     font-size: 12px;
     text-align: center;
     user-select: none;
-    transition: all var(--transition);
+    transition: background var(--transition), border-color var(--transition), color var(--transition);
+    box-sizing: content-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
 }
 .diff-fold:hover {
     background: var(--bg-hover);
@@ -676,6 +688,404 @@ select:focus {
     font-weight: 600;
     pointer-events: none;
     z-index: 10;
+}
+
+/* ========== Toolbar ========== */
+.toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 20px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 12px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+.toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.toolbar-actions {
+    margin-left: auto;
+}
+.toolbar-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 12px;
+    user-select: none;
+}
+.toolbar-checkbox input[type="checkbox"] {
+    cursor: pointer;
+}
+.toolbar-label {
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+/* ========== Dropdown ========== */
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+.dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    z-index: 100;
+    min-width: 160px;
+    overflow: hidden;
+}
+.dropdown-menu.open {
+    display: block;
+}
+.dropdown-menu button {
+    display: block;
+    width: 100%;
+    padding: 8px 14px;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+    font-family: var(--font-sans);
+}
+.dropdown-menu button:hover {
+    background: var(--bg-hover);
+}
+
+/* ========== Find/Replace Bar ========== */
+.find-bar {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    padding: 6px 12px;
+    flex-shrink: 0;
+}
+.find-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+.find-row:last-child {
+    margin-bottom: 0;
+}
+.find-input {
+    flex: 1;
+    padding: 4px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-family: var(--font-mono);
+    outline: none;
+}
+.find-input:focus {
+    border-color: var(--accent-blue);
+}
+.find-count {
+    font-size: 11px;
+    color: var(--text-muted);
+    min-width: 40px;
+    text-align: center;
+}
+.find-case {
+    font-size: 11px;
+}
+.btn-sm {
+    padding: 3px 8px;
+    font-size: 11px;
+}
+
+/* ========== Mode Tabs ========== */
+.mode-tabs {
+    display: flex;
+    gap: 0;
+    padding: 0 20px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+.mode-tab {
+    padding: 8px 16px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    transition: all var(--transition);
+}
+.mode-tab:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+}
+.mode-tab.active {
+    color: var(--accent-blue);
+    border-bottom-color: var(--accent-blue);
+}
+
+/* ========== Unified Diff ========== */
+.diff-unified-row {
+    display: flex;
+    height: 19.5px;
+    box-sizing: content-box;
+    box-shadow: 0 -1px 0 var(--border-light) inset;
+}
+.diff-unified-row:hover {
+    background: rgba(88, 166, 255, 0.04);
+}
+.diff-unified-row .diff-line-num-old {
+    width: 40px;
+    min-width: 40px;
+    text-align: right;
+    padding: 0 6px;
+    color: var(--text-muted);
+    user-select: none;
+    border-right: 1px solid var(--border-light);
+    font-size: 11px;
+    flex-shrink: 0;
+    line-height: 19.5px;
+}
+.diff-unified-row .diff-line-num-new {
+    width: 40px;
+    min-width: 40px;
+    text-align: right;
+    padding: 0 6px;
+    color: var(--text-muted);
+    user-select: none;
+    border-right: 1px solid var(--border-light);
+    font-size: 11px;
+    flex-shrink: 0;
+    line-height: 19.5px;
+}
+.diff-unified-row .diff-line-prefix {
+    width: 20px;
+    min-width: 20px;
+    text-align: center;
+    font-weight: 700;
+    flex-shrink: 0;
+    line-height: 19.5px;
+}
+.diff-unified-row .diff-line-content {
+    flex: 1;
+    padding: 0 12px;
+    white-space: pre;
+    word-break: break-all;
+    min-width: 0;
+    overflow: hidden;
+    line-height: 19.5px;
+}
+.diff-unified-added {
+    background: var(--diff-added-bg);
+}
+.diff-unified-added .diff-line-prefix { color: var(--accent-green); }
+.diff-unified-deleted {
+    background: var(--diff-deleted-bg);
+}
+.diff-unified-deleted .diff-line-prefix { color: var(--accent-red); }
+.diff-unified-unchanged {
+    background: transparent;
+}
+.diff-unified-unchanged .diff-line-content {
+    color: var(--text-secondary);
+}
+
+/* ========== Merge Mode ========== */
+.diff-row .merge-actions {
+    display: none;
+    gap: 2px;
+    flex-shrink: 0;
+    padding: 0 4px;
+    align-items: center;
+}
+.diff-row.has-changes .merge-actions {
+    display: flex;
+}
+.merge-accept, .merge-reject {
+    padding: 1px 6px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all var(--transition);
+    line-height: 1;
+}
+.merge-accept:hover {
+    background: rgba(26, 127, 55, 0.2);
+    color: var(--accent-green);
+    border-color: var(--accent-green);
+}
+.merge-reject:hover {
+    background: rgba(207, 34, 46, 0.2);
+    color: var(--accent-red);
+    border-color: var(--accent-red);
+}
+.merge-panel {
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    max-height: 200px;
+}
+.merge-output-wrap {
+    flex: 1;
+    overflow: hidden;
+}
+.merge-output {
+    width: 100%;
+    height: 100%;
+}
+
+/* ========== Image Diff ========== */
+.image-diff-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.image-diff-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+.image-diff-body {
+    display: flex;
+    flex: 1;
+    gap: 4px;
+    padding: 12px;
+    overflow: auto;
+    min-height: 0;
+}
+.image-upload-zone {
+    flex: 1;
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition);
+    min-height: 200px;
+    position: relative;
+    overflow: hidden;
+}
+.image-upload-zone:hover {
+    border-color: var(--accent-blue);
+    background: rgba(88, 166, 255, 0.04);
+}
+.upload-placeholder {
+    color: var(--text-muted);
+    font-size: 14px;
+}
+.image-canvas {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+.image-diff-result {
+    position: relative;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    margin: 0 12px 12px;
+}
+.image-swipe-handle {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--accent-blue);
+    cursor: ew-resize;
+    z-index: 10;
+}
+
+/* ========== 3-Way Merge ========== */
+.merge3-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.merge3-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+.merge3-body {
+    display: flex;
+    flex: 1;
+    gap: 4px;
+    padding: 8px;
+    overflow: hidden;
+    min-height: 0;
+}
+.merge3-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    min-width: 0;
+}
+.merge3-editor {
+    flex: 1;
+    min-height: 150px;
+}
+.merge3-result {
+    border-top: 1px solid var(--border-color);
+    max-height: 250px;
+    display: flex;
+    flex-direction: column;
+}
+.merge3-output {
+    flex: 1;
+    overflow: auto;
+    padding: 8px 12px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+/* ========== Diff Row Clickable (line navigation) ========== */
+.diff-row[data-left-line],
+.diff-row[data-right-line] {
+    cursor: pointer;
+}
+.diff-unified-row[data-line] {
+    cursor: pointer;
+}
+
+/* ========== Syntax Highlighting ========== */
+.diff-line-content .hljs {
+    background: transparent !important;
+    padding: 0 !important;
 }
 
 /* ========== Responsive ========== */
