@@ -34,14 +34,14 @@
                     <option value="ascii">ASCII</option>
                 </select>
             </div>
-            <button id="themeToggle" class="theme-toggle" title="切换主题">
+            <button id="themeToggle" class="theme-toggle" title="切换主题" aria-label="切换主题">
                 <span class="theme-toggle-icon" id="themeIcon">☀️</span>
                 <span id="themeLabel">Light</span>
             </button>
-            <button id="btnCompare" class="btn btn-primary">对比</button>
-            <button id="btnSwap" class="btn btn-secondary" title="交换左右内容">⇄ 交换</button>
-            <button id="btnClear" class="btn btn-secondary">清空</button>
-            <button id="btnHistory" class="btn btn-secondary" title="历史记录">📋 历史</button>
+            <button id="btnCompare" class="btn btn-primary" aria-label="对比">对比</button>
+            <button id="btnSwap" class="btn btn-secondary" title="交换左右内容" aria-label="交换左右内容">⇄ 交换</button>
+            <button id="btnClear" class="btn btn-secondary" aria-label="清空">清空</button>
+            <button id="btnHistory" class="btn btn-secondary" title="历史记录" aria-label="历史记录">📋 历史</button>
         </div>
     </header>
 
@@ -85,15 +85,16 @@
         </div>
         <div class="toolbar-group toolbar-actions">
             <div class="dropdown" id="exportDropdown">
-                <button class="btn btn-secondary" id="btnExport">📥 导出</button>
+                <button class="btn btn-secondary" id="btnExport" aria-label="导出">📥 导出</button>
                 <div class="dropdown-menu" id="exportMenu">
                     <button data-action="export-html">导出 HTML</button>
                     <button data-action="export-text">导出纯文本</button>
                     <button data-action="export-clipboard">复制到剪贴板</button>
+                    <button data-action="export-image">导出图片</button>
                 </div>
             </div>
-            <button class="btn btn-secondary" id="btnShare" title="生成分享链接">🔗 分享</button>
-            <button class="btn btn-secondary" id="btnMergeMode" title="合并模式">🔀 合并</button>
+            <button class="btn btn-secondary" id="btnShare" title="生成分享链接" aria-label="生成分享链接">🔗 分享</button>
+            <button class="btn btn-secondary" id="btnMergeMode" title="合并模式" aria-label="合并模式">🔀 合并</button>
         </div>
     </div>
 
@@ -123,7 +124,7 @@
                             <option value="desc">排序: 降序 Z→A</option>
                         </select>
                     </div>
-                    <button class="btn-icon btn-upload" data-side="original" title="上传文件">📁</button>
+                    <button class="btn-icon btn-upload" data-side="original" title="上传文件" aria-label="上传 Original 文件">📁</button>
                     <input type="file" class="file-input" data-side="original" hidden>
                 </div>
             </div>
@@ -132,10 +133,10 @@
                 <div class="find-row">
                     <input type="text" class="find-input" id="findInputOriginal" placeholder="查找...">
                     <span class="find-count" id="findCountOriginal">0/0</span>
-                    <button class="btn-icon find-prev" data-side="original" title="上一个">▲</button>
-                    <button class="btn-icon find-next" data-side="original" title="下一个">▼</button>
+                    <button class="btn-icon find-prev" data-side="original" title="上一个" aria-label="上一个匹配">▲</button>
+                    <button class="btn-icon find-next" data-side="original" title="下一个" aria-label="下一个匹配">▼</button>
                     <label class="toolbar-checkbox find-case"><input type="checkbox" id="findCaseOriginal"> Aa</label>
-                    <button class="btn-icon find-close" data-side="original" title="关闭">✕</button>
+                    <button class="btn-icon find-close" data-side="original" title="关闭" aria-label="关闭查找栏">✕</button>
                 </div>
                 <div class="find-row">
                     <input type="text" class="find-input" id="replaceInputOriginal" placeholder="替换...">
@@ -195,7 +196,7 @@
                             <option value="desc">排序: 降序 Z→A</option>
                         </select>
                     </div>
-                    <button class="btn-icon btn-upload" data-side="modified" title="上传文件">📁</button>
+                    <button class="btn-icon btn-upload" data-side="modified" title="上传文件" aria-label="上传 Modified 文件">📁</button>
                     <input type="file" class="file-input" data-side="modified" hidden>
                 </div>
             </div>
@@ -204,10 +205,10 @@
                 <div class="find-row">
                     <input type="text" class="find-input" id="findInputModified" placeholder="查找...">
                     <span class="find-count" id="findCountModified">0/0</span>
-                    <button class="btn-icon find-prev" data-side="modified" title="上一个">▲</button>
-                    <button class="btn-icon find-next" data-side="modified" title="下一个">▼</button>
+                    <button class="btn-icon find-prev" data-side="modified" title="上一个" aria-label="上一个匹配">▲</button>
+                    <button class="btn-icon find-next" data-side="modified" title="下一个" aria-label="下一个匹配">▼</button>
                     <label class="toolbar-checkbox find-case"><input type="checkbox" id="findCaseModified"> Aa</label>
-                    <button class="btn-icon find-close" data-side="modified" title="关闭">✕</button>
+                    <button class="btn-icon find-close" data-side="modified" title="关闭" aria-label="关闭查找栏">✕</button>
                 </div>
                 <div class="find-row">
                     <input type="text" class="find-input" id="replaceInputModified" placeholder="替换...">
@@ -310,7 +311,7 @@
         <div class="modal">
             <div class="modal-header">
                 <h2>历史记录</h2>
-                <button class="btn-icon modal-close" id="historyClose">✕</button>
+                <button class="btn-icon modal-close" id="historyClose" aria-label="关闭历史记录">✕</button>
             </div>
             <div class="modal-body" id="historyList">
                 <p class="empty-state">暂无历史记录</p>
@@ -333,7 +334,8 @@
             crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"
             integrity="sha384-0d+Gr7vM4Drod8E3hXKgciWJSWbjD/opKLLygI9ktiWbuvlDwQLzU46wJ9s5gsp7"
-            crossorigin="anonymous" defer></script>
+            crossorigin="anonymous"></script>
+    <script src="js/html2canvas.min.js" defer></script>
     <script>
         if (typeof Diff === 'undefined') {
             var overlay = document.createElement('div');

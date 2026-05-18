@@ -72,7 +72,7 @@ const Storage = (() => {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
         } catch (e) {
-            console.warn('Failed to save after delete:', e.message);
+            // localStorage write failed (quota or disabled) — fall through silently
         }
         return records;
     }

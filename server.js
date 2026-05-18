@@ -27,12 +27,15 @@ const securityHeaders = {
 
 const s = http.createServer((req, res) => {
     const urlPath = decodeURIComponent(req.url.split('?')[0]);
-    const safePath = path.normalize(urlPath);
-    let f = safePath === '/' ? 'index.html' : safePath;
-    f = path.join(ROOT, f);
+    let safePath = path.normalize(urlPath);
+    // Normalize path separators for Windows compatibility
+    safePath = safePath.replace(/\\/g, '/');
+    const isRoot = safePath === '/' || safePath === '\\';
+    let f = isRoot ? 'index.html' : safePath;
+    f = path.join(ROOT, ...f.split('/').filter(Boolean));
 
     const resolved = path.resolve(f);
-    if (!resolved.startsWith(ROOT)) {
+    if (resolved !== ROOT && !resolved.startsWith(ROOT + path.sep)) {
         res.writeHead(403, securityHeaders);
         res.end('Forbidden');
         return;

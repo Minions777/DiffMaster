@@ -274,7 +274,7 @@ const DiffEngine = (() => {
         const trimmed = text.trim();
         if (!trimmed) return 'plaintext';
 
-        if (/^\s*\{[\s\S]*\}\s*$/.test(trimmed) || /^\s*\[[\s\S]*\]\s*$/) return 'json';
+        if (/^\s*\{[\s\S]*\}\s*$/.test(trimmed) || /^\s*\[[\s\S]*\]\s*$/.test(trimmed)) return 'json';
         if (/^\s*<\?php/.test(trimmed)) return 'php';
         if (/^\s*<(!DOCTYPE|html|svg)/i.test(trimmed)) return 'html';
         if (/^\s*(import|export|const|let|var|function|class)\s/m.test(trimmed) && /[;{}()]/.test(trimmed)) return 'javascript';
@@ -285,8 +285,12 @@ const DiffEngine = (() => {
         if (/^\s*(fn |let mut|use |mod )/m.test(trimmed)) return 'rust';
 
         try {
-            hljs.highlight(trimmed, { language: 'javascript', ignoreIllegals: true });
-            return 'javascript';
+            const result = hljs.highlightAuto(trimmed, [
+                'javascript', 'typescript', 'python', 'java', 'cpp', 'csharp',
+                'go', 'rust', 'php', 'ruby', 'sql', 'css', 'xml', 'yaml',
+                'markdown', 'shell'
+            ]);
+            if (result.language && result.relevance > 5) return result.language;
         } catch { /* ignore */ }
 
         return 'plaintext';
@@ -451,8 +455,20 @@ const DiffEngine = (() => {
             }
         }
 
-        // Batch highlight all lines at once
-        const hlResults = syntaxHighlightLines(lines.map(l => l.text), lang);
+        // Batch highlight only visible lines (folded lines render unchanged)
+        const visibleTexts = [];
+        const visibleMap = new Map();
+        for (let i = 0; i < totalLines; i++) {
+            if (showLine[i]) {
+                visibleMap.set(i, visibleTexts.length);
+                visibleTexts.push(lines[i].text);
+            }
+        }
+        const hlVisible = syntaxHighlightLines(visibleTexts, lang);
+        const getHl = idx => {
+            const k = visibleMap.get(idx);
+            return k != null ? hlVisible[k] : escapeHtml(lines[idx].text);
+        };
 
         let hiddenStart = -1;
 
@@ -474,7 +490,7 @@ const DiffEngine = (() => {
                     html += `<span class="diff-line-num-old">${l.oldNum || ''}</span>`;
                     html += `<span class="diff-line-num-new">${l.newNum || ''}</span>`;
                     html += `<span class="diff-line-prefix"></span>`;
-                    html += `<span class="diff-line-content">${hlResults[k] || '&nbsp;'}</span>`;
+                    html += `<span class="diff-line-content">${getHl(k) || '&nbsp;'}</span>`;
                     html += `</div>`;
                 }
                 html += `</div>`;
@@ -488,7 +504,7 @@ const DiffEngine = (() => {
             html += `<span class="diff-line-num-old">${l.oldNum || ''}</span>`;
             html += `<span class="diff-line-num-new">${l.newNum || ''}</span>`;
             html += `<span class="diff-line-prefix">${prefix}</span>`;
-            html += `<span class="diff-line-content">${hlResults[i] || '&nbsp;'}</span>`;
+            html += `<span class="diff-line-content">${getHl(i) || '&nbsp;'}</span>`;
             html += `</div>`;
         }
 

@@ -16,6 +16,8 @@ const App = (() => {
     let currentMode = 'text'; // text | image | merge3
     let mergeDecisions = {};
     let _diffCache = null; // { original, modified, options, sideBySide, unified }
+    const LH = 19.5; // editor + diff line height (matches DiffEngine.LINE_HEIGHT)
+    const PAD = 8; // editor and diff-output top padding
 
     function init() {
         cacheElements();
@@ -30,7 +32,9 @@ const App = (() => {
 
     function syncEncodingOptions() {
         $$('.panel-encoding').forEach(sel => {
+            const prev = sel.value;
             sel.innerHTML = els.globalEncoding.innerHTML;
+            if (prev) sel.value = prev;
         });
     }
 
@@ -161,6 +165,7 @@ const App = (() => {
             if (action === 'export-html') exportAsHtml();
             else if (action === 'export-text') exportAsText();
             else if (action === 'export-clipboard') exportToClipboard();
+            else if (action === 'export-image') exportAsImage();
             els.exportMenu.classList.remove('open');
         });
 
@@ -326,15 +331,23 @@ const App = (() => {
     }
 
     /* ==================== Export ==================== */
-    function getDiffOutputText() {
-        const rows = els.diffOutput.querySelectorAll('.diff-row, .diff-unified-row');
-        let text = '';
-        rows.forEach(row => {
-            const contents = row.querySelectorAll('.diff-line-content, .diff-line-prefix');
-            contents.forEach(c => { text += c.textContent; });
-            text += '\n';
-        });
-        return text;
+    function buildDiffText() {
+        const rows = currentDiffData.rows;
+        const parts = [];
+        for (const row of rows) {
+            const l = row.left;
+            const r = row.right;
+            if (l.type === 'deleted' && r.type === 'added') {
+                parts.push('- ' + l.text, '+ ' + r.text);
+            } else if (l.type === 'deleted') {
+                parts.push('- ' + l.text);
+            } else if (r.type === 'added') {
+                parts.push('+ ' + r.text);
+            } else {
+                parts.push('  ' + l.text);
+            }
+        }
+        return parts.join('\n') + '\n';
     }
 
     function exportAsHtml() {
@@ -362,21 +375,7 @@ const App = (() => {
 
     function exportAsText() {
         if (!currentDiffData) { showToast('请先进行对比', 'error'); return; }
-        const rows = currentDiffData.rows;
-        let text = '';
-        for (const row of rows) {
-            const l = row.left;
-            const r = row.right;
-            if (l.type === 'deleted' && r.type === 'added') {
-                text += `- ${l.text}\n+ ${r.text}\n`;
-            } else if (l.type === 'deleted') {
-                text += `- ${l.text}\n`;
-            } else if (r.type === 'added') {
-                text += `+ ${r.text}\n`;
-            } else {
-                text += `  ${l.text}\n`;
-            }
-        }
+        const text = buildDiffText();
         const blob = new Blob([text], { type: 'text/plain' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
@@ -388,24 +387,201 @@ const App = (() => {
 
     function exportToClipboard() {
         if (!currentDiffData) { showToast('请先进行对比', 'error'); return; }
-        const rows = currentDiffData.rows;
-        let text = '';
-        for (const row of rows) {
-            const l = row.left;
-            const r = row.right;
-            if (l.type === 'deleted' && r.type === 'added') {
-                text += `- ${l.text}\n+ ${r.text}\n`;
-            } else if (l.type === 'deleted') {
-                text += `- ${l.text}\n`;
-            } else if (r.type === 'added') {
-                text += `+ ${r.text}\n`;
-            } else {
-                text += `  ${l.text}\n`;
-            }
-        }
-        navigator.clipboard.writeText(text).then(() => showToast('已复制到剪贴板', 'success'));
+        navigator.clipboard.writeText(buildDiffText()).then(() => showToast('已复制到剪贴板', 'success'));
     }
 
+    function exportAsImage() {
+        if (!currentDiffData) { showToast('请先进行对比', 'error'); return; }
+        const lib = typeof html2canvas !== 'undefined' ? html2canvas
+            : (typeof window !== 'undefined' && typeof window.html2canvas !== 'undefined' ? window.html2canvas : null);
+        if (!lib) { showToast('图片导出库未加载', 'error'); return; }
+
+        showToast('正在生成图片...', '');
+
+        const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--bg-primary').trim() || '#ffffff';
+        const fontMono = getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim() || 'monospace';
+        const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim() || '#24292f';
+        const LH = 19.5; // line height
+        const mode = currentDiffData.mode;
+        const view = currentDiffData.view;
+        const lang = document.getElementById('syntaxLang')?.value || 'auto';
+
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'position:fixed;top:0;left:-99999px;display:flex;flex-direction:row;width:100%;background:' + bgColor + ';font-family:' + fontMono + ';font-size:13px;line-height:' + LH + 'px;visibility:hidden;pointer-events:none;';
+        document.body.appendChild(wrapper);
+        wrapper.getBoundingClientRect();
+
+        function buildTextPanelHTML(lines) {
+            const numWidth = 40;
+            let html = '';
+            for (let i = 0; i < lines.length; i++) {
+                const lineNum = i + 1;
+                const escaped = DiffEngine.escapeHtml(lines[i]);
+                html += '<div style="display:flex;align-items:center;height:' + LH + 'px;box-sizing:border-box;">' +
+                    '<span style="width:' + numWidth + 'px;min-width:' + numWidth + 'px;text-align:right;padding:0 6px;color:#8c959f;font-size:11px;user-select:none;border-right:1px solid rgba(0,0,0,0.1);box-sizing:border-box;">' + lineNum + '</span>' +
+                    '<span style="flex:1;padding:0 12px;white-space:pre;overflow:hidden;color:' + textColor + ';box-sizing:border-box;">' + (escaped || '&nbsp;') + '</span>' +
+                '</div>';
+            }
+            return html;
+        }
+
+        function buildDiffPanelHTML() {
+            const rows = currentDiffData.rows;
+            if (!rows || rows.length === 0) return '<div style="padding:8px;">无差异</div>';
+            const showRow = new Array(rows.length).fill(false);
+            const contextLines = 3;
+            for (let i = 0; i < rows.length; i++) {
+                if (rows[i].left.type !== 'unchanged' || rows[i].right.type !== 'unchanged') {
+                    const start = Math.max(0, i - contextLines);
+                    for (let j = start; j <= Math.min(rows.length - 1, i + contextLines); j++) showRow[j] = true;
+                }
+            }
+            const useHighlight = lang && lang !== 'auto' && lang !== 'plaintext';
+            const visibleIndices = [];
+            for (let i = 0; i < rows.length; i++) { if (showRow[i]) visibleIndices.push(i); }
+            const hlLeftTexts = [], hlRightTexts = [];
+            const hlLeftMap = new Map(), hlRightMap = new Map();
+            if (useHighlight) {
+                for (const i of visibleIndices) {
+                    const { left, right } = rows[i];
+                    const isModifiedPair = left.type === 'deleted' && right.type === 'added';
+                    if (mode === 'lines' || !isModifiedPair) {
+                        hlLeftMap.set(i, hlLeftTexts.length);
+                        hlLeftTexts.push(left.text);
+                        hlRightMap.set(i, hlRightTexts.length);
+                        hlRightTexts.push(right.text);
+                    }
+                }
+            }
+            const hlLeftResults = useHighlight ? DiffEngine.syntaxHighlightLines(hlLeftTexts, lang) : [];
+            const hlRightResults = useHighlight ? DiffEngine.syntaxHighlightLines(hlRightTexts, lang) : [];
+            const numWidth = 40;
+            const leftBorder = 'border-right:1px solid rgba(0,0,0,0.1)';
+            const sideWidth = '50%';
+            let html = '';
+            let hiddenStart = -1;
+            for (let i = 0; i < rows.length; i++) {
+                if (!showRow[i]) {
+                    if (hiddenStart === -1) hiddenStart = i;
+                    continue;
+                }
+                if (hiddenStart !== -1) {
+                    const hiddenCount = i - hiddenStart;
+                    html += '<div style="display:flex;align-items:center;height:' + LH + 'px;box-sizing:border-box;background:#f6f8fa;color:#6e7781;font-size:12px;' + leftBorder + '">' +
+                        '<span style="width:' + numWidth + 'px;min-width:' + numWidth + 'px;text-align:right;padding:0 6px;border-right:1px solid rgba(0,0,0,0.1);box-sizing:border-box;"></span>' +
+                        '<span style="padding:0 12px;">&#8942; ' + hiddenCount + ' 行未变化内容（点击展开）</span>' +
+                    '</div>';
+                    hiddenStart = -1;
+                }
+                const { left, right } = rows[i];
+                const isModifiedPair = left.type === 'deleted' && right.type === 'added';
+                let leftContent, rightContent;
+                if (mode !== 'lines' && isModifiedPair) {
+                    const inline = DiffEngine.highlightInlineChanges(left.text, right.text, mode);
+                    leftContent = inline.oldHtml;
+                    rightContent = inline.newHtml;
+                } else if (useHighlight) {
+                    leftContent = hlLeftResults[hlLeftMap.get(i)] || '';
+                    rightContent = hlRightResults[hlRightMap.get(i)] || '';
+                } else {
+                    leftContent = DiffEngine.escapeHtml(left.text);
+                    rightContent = DiffEngine.escapeHtml(right.text);
+                }
+                const leftType = left.type;
+                const rightType = right.type;
+                const leftBg = leftType === 'added' ? 'rgba(34,211,83,0.15)' : leftType === 'deleted' ? 'rgba(255,129,130,0.15)' : '';
+                const rightBg = rightType === 'added' ? 'rgba(34,211,83,0.15)' : rightType === 'deleted' ? 'rgba(255,129,130,0.15)' : '';
+                const leftIndicator = leftType === 'deleted' ? '&#10006;' : leftType === 'added' ? '&#10004;' : '';
+                const rightIndicator = rightType === 'added' ? '&#10004;' : rightType === 'deleted' ? '&#10006;' : '';
+                html += '<div style="display:flex;align-items:stretch;height:' + LH + 'px;box-sizing:border-box;">';
+                html += '<div style="width:' + sideWidth + ';display:flex;align-items:center;background:' + leftBg + ';' + leftBorder + '">' +
+                    '<span style="width:' + numWidth + 'px;min-width:' + numWidth + 'px;text-align:right;padding:0 6px;color:#8c959f;font-size:11px;user-select:none;border-right:1px solid rgba(0,0,0,0.1);box-sizing:border-box;">' + (left.num != null ? left.num : '') + '</span>' +
+                    '<span style="width:16px;min-width:16px;text-align:center;color:' + (leftType === 'deleted' ? '#cf222e' : leftType === 'added' ? '#1a7f37' : 'transparent') + ';box-sizing:border-box;">' + leftIndicator + '</span>' +
+                    '<span style="flex:1;padding:0 12px;white-space:pre;overflow:hidden;color:' + textColor + ';box-sizing:border-box;">' + (leftContent || '&nbsp;') + '</span>' +
+                '</div>';
+                html += '<div style="width:' + sideWidth + ';display:flex;align-items:center;background:' + rightBg + ';">' +
+                    '<span style="width:' + numWidth + 'px;min-width:' + numWidth + 'px;text-align:right;padding:0 6px;color:#8c959f;font-size:11px;user-select:none;border-right:1px solid rgba(0,0,0,0.1);box-sizing:border-box;">' + (right.num != null ? right.num : '') + '</span>' +
+                    '<span style="width:16px;min-width:16px;text-align:center;color:' + (rightType === 'added' ? '#1a7f37' : rightType === 'deleted' ? '#cf222e' : 'transparent') + ';box-sizing:border-box;">' + rightIndicator + '</span>' +
+                    '<span style="flex:1;padding:0 12px;white-space:pre;overflow:hidden;color:' + textColor + ';box-sizing:border-box;">' + (rightContent || '&nbsp;') + '</span>' +
+                '</div>';
+                html += '</div>';
+            }
+            return html;
+        }
+
+        function buildUnifiedDiffPanelHTML() {
+            const lines = currentDiffData.lines;
+            if (!lines || lines.length === 0) return '<div style="padding:8px;">无差异</div>';
+            const numWidth = 40;
+            let html = '';
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                const bg = line.type === 'added' ? 'rgba(34,211,83,0.15)' : line.type === 'deleted' ? 'rgba(255,129,130,0.15)' : '';
+                const indicator = line.type === 'added' ? '+' : line.type === 'deleted' ? '-' : ' ';
+                const text = DiffEngine.escapeHtml(line.text);
+                html += '<div style="display:flex;align-items:center;height:' + LH + 'px;box-sizing:border-box;background:' + bg + ';border-bottom:1px solid rgba(0,0,0,0.05);">' +
+                    '<span style="width:' + numWidth + 'px;min-width:' + numWidth + 'px;text-align:right;padding:0 6px;color:#8c959f;font-size:11px;user-select:none;border-right:1px solid rgba(0,0,0,0.1);box-sizing:border-box;">' + (line.num != null ? line.num : '') + '</span>' +
+                    '<span style="width:16px;min-width:16px;text-align:center;color:' + (line.type === 'added' ? '#1a7f37' : line.type === 'deleted' ? '#cf222e' : '#8c959f') + ';box-sizing:border-box;">' + indicator + '</span>' +
+                    '<span style="flex:1;padding:0 12px;white-space:pre;overflow:hidden;color:' + textColor + ';box-sizing:border-box;">' + (text || '&nbsp;') + '</span>' +
+                '</div>';
+            }
+            return html;
+        }
+
+        const origLines = els.originalText.value.split('\n');
+        const origDiv = document.createElement('div');
+        origDiv.style.cssText = 'flex:1;min-width:0;overflow:visible;padding:8px 0;box-sizing:border-box;border-right:1px solid rgba(0,0,0,0.1);';
+        origDiv.innerHTML = buildTextPanelHTML(origLines);
+        wrapper.appendChild(origDiv);
+
+        const diffDiv = document.createElement('div');
+        diffDiv.style.cssText = 'flex:1.5;min-width:0;overflow:visible;padding:8px 0;box-sizing:border-box;background:' + bgColor + ';';
+        diffDiv.innerHTML = view === 'unified' ? buildUnifiedDiffPanelHTML() : buildDiffPanelHTML();
+        wrapper.appendChild(diffDiv);
+
+        const modLines = els.modifiedText.value.split('\n');
+        const modDiv = document.createElement('div');
+        modDiv.style.cssText = 'flex:1;min-width:0;overflow:visible;padding:8px 0;box-sizing:border-box;border-left:1px solid rgba(0,0,0,0.1);';
+        modDiv.innerHTML = buildTextPanelHTML(modLines);
+        wrapper.appendChild(modDiv);
+
+        const totalWidth = wrapper.scrollWidth;
+        const totalHeight = wrapper.scrollHeight;
+
+        lib(wrapper, {
+            backgroundColor: bgColor,
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            width: totalWidth,
+            height: totalHeight,
+            windowWidth: totalWidth,
+            windowHeight: totalHeight,
+            scrollWidth: totalWidth,
+            scrollHeight: totalHeight,
+            x: 0,
+            y: 0,
+            ignoreElements: () => false,
+        }).then(canvas => {
+            const cleanup = () => { if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper); };
+            canvas.toBlob(blob => {
+                try {
+                    if (!blob) { showToast('图片导出失败', 'error'); return; }
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = 'diff-' + Date.now() + '.png';
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                    showToast('图片已导出', 'success');
+                } finally {
+                    cleanup();
+                }
+            }, 'image/png');
+        }).catch(e => {
+            showToast('图片导出失败', 'error');
+            if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+        });
+    }
     /* ==================== Share URL ==================== */
     function shareUrl() {
         const original = els.originalText.value;
@@ -521,6 +697,7 @@ const App = (() => {
         const canvas = zone.querySelector('.image-canvas');
         const placeholder = zone.querySelector('.upload-placeholder');
         const img = new Image();
+        const url = URL.createObjectURL(file);
         img.onload = () => {
             canvas.width = img.width;
             canvas.height = img.height;
@@ -529,8 +706,10 @@ const App = (() => {
             placeholder.style.display = 'none';
             if (zoneId === 'imageUploadOriginal') imageOriginal = img;
             else imageModified = img;
+            URL.revokeObjectURL(url);
         };
-        img.src = URL.createObjectURL(file);
+        img.onerror = () => URL.revokeObjectURL(url);
+        img.src = url;
     }
 
     function doImageDiff() {
@@ -616,79 +795,11 @@ const App = (() => {
         const theirs = els.merge3Theirs.value;
         if (!base || !ours || !theirs) { showToast('请填写所有三个版本', 'error'); return; }
 
-        const baseLines = base.split('\n');
-        const oursLines = ours.split('\n');
-        const theirsLines = theirs.split('\n');
-
-        // Simple 3-way merge: find differences from base
-        const dOurs = Diff.diffLines(base, ours);
-        const dTheirs = Diff.diffLines(base, theirs);
-
-        // Build merged result
-        const result = [];
-        const baseParts = [];
-        let pos = 0;
-
-        // Collect ours changes
-        const oursChanges = [];
-        for (const part of dOurs) {
-            if (part.added) oursChanges.push({ start: pos, end: pos, text: part.value, type: 'added' });
-            else if (part.removed) oursChanges.push({ start: pos, end: pos + part.value.split('\n').length - 1, text: '', type: 'removed' });
-            else pos += part.value.split('\n').length - (part.value.endsWith('\n') ? 1 : 0);
-        }
-
-        // Simple approach: apply non-conflicting changes
-        const merged = [];
-        const baseSplit = base.split('\n');
-        const oursSplit = ours.split('\n');
-        const theirsSplit = theirs.split('\n');
-
-        // Find common lines and divergences
-        let bi = 0, oi = 0, ti = 0;
-        const dO = Diff.diffArrays(baseSplit, oursSplit);
-        const dT = Diff.diffArrays(baseSplit, theirsSplit);
-
-        // Simple merge: if both changed the same line differently, it's a conflict
-        let conflicts = 0;
-        const resultLines = [];
-        let bIdx = 0;
-
-        for (const part of dO) {
-            if (!part.added && !part.removed) {
-                for (const line of part.value) resultLines.push(line);
-                bIdx += part.value.length;
-            } else if (part.removed && !part.added) {
-                // Deleted in ours, check if also changed in theirs
-                bIdx += part.value.length;
-            } else if (part.added) {
-                for (const line of part.value) resultLines.push(line);
-            }
-        }
-
-        // Apply theirs on top
-        const step1 = resultLines.join('\n');
-        const mergedResult = Diff.mergeDiff ? base : ours; // fallback
-
-        // Use a simpler approach: start with ours, apply theirs' unique changes
-        const finalResult = [];
-        const oursSet = new Set(oursSplit);
-        const theirsSet = new Set(theirsSplit);
-        const baseSet = new Set(baseSplit);
-
-        // Start with ours
-        let conflictMarkers = '';
-        const mergedText = ours; // Start with ours
-        const d = Diff.diffLines(base, ours);
-        const d2 = Diff.diffLines(base, theirs);
-
-        // Simple 3-way: output ours with conflict markers where theirs differs
-        let output = [];
         const bLines = base.split('\n');
         const oLines = ours.split('\n');
         const tLines = theirs.split('\n');
 
-        // Use LCS-based merge
-        output = simpleMerge(bLines, oLines, tLines);
+        const output = simpleMerge(bLines, oLines, tLines);
         const conflictsFound = output.some(l => l.startsWith('<<<<<<<'));
 
         els.merge3Result.style.display = '';
@@ -701,94 +812,86 @@ const App = (() => {
         }
     }
 
+    /**
+     * Position-aware 3-way merge.
+     * Walk base line-by-line; at each position consult ours/theirs edit maps.
+     * Both edit identically -> apply once. Both edit differently -> conflict.
+     * Only one side edits -> take that side. Neither -> keep base line.
+     */
     function simpleMerge(base, ours, theirs) {
+        const oursOps = buildOpsByBase(base, ours);
+        const theirsOps = buildOpsByBase(base, theirs);
         const result = [];
-        const dO = Diff.diffArrays(base, ours);
-        const dT = Diff.diffArrays(base, theirs);
+        let i = 0;
+        while (i <= base.length) {
+            const oOp = oursOps.get(i);
+            const tOp = theirsOps.get(i);
+            const oHas = !!(oOp && (oOp.removed > 0 || oOp.inserted.length > 0));
+            const tHas = !!(tOp && (tOp.removed > 0 || tOp.inserted.length > 0));
 
-        // Collect changes from base
-        const oursEdits = collectEdits(dO);
-        const theirsEdits = collectEdits(dT);
-
-        // Check for conflicts
-        const conflictRegions = new Set();
-        for (const oe of oursEdits) {
-            for (const te of theirsEdits) {
-                if (rangesOverlap(oe.start, oe.end, te.start, te.end)) {
-                    for (let i = Math.min(oe.start, te.start); i <= Math.max(oe.end, te.end); i++) {
-                        conflictRegions.add(i);
-                    }
-                }
-            }
-        }
-
-        // Apply changes
-        let bi = 0;
-        let oi = 0;
-        let ti = 0;
-
-        // Simple strategy: apply ours first, then check theirs for non-conflicting
-        const applied = new Set();
-        for (const edit of oursEdits) {
-            if (!conflictRegions.has(edit.start)) {
-                // Non-conflicting, apply ours
-                for (const line of edit.lines) result.push(line);
-                applied.add(edit.start);
-            }
-        }
-
-        // For conflicting regions, add markers
-        const processed = new Set();
-        for (const edit of oursEdits) {
-            if (conflictRegions.has(edit.start) && !processed.has(edit.start)) {
-                processed.add(edit.start);
-                const theirsEdit = theirsEdits.find(te => rangesOverlap(edit.start, edit.end, te.start, te.end));
-                if (theirsEdit) {
-                    result.push('<<<<<<< Ours');
-                    for (const line of edit.lines) result.push(line);
-                    result.push('=======');
-                    for (const line of theirsEdit.lines) result.push(line);
-                    result.push('>>>>>>> Theirs');
+            if (oHas && tHas) {
+                const sameRemoved = oOp.removed === tOp.removed;
+                const sameInserted = oOp.inserted.length === tOp.inserted.length
+                    && oOp.inserted.every((l, k) => l === tOp.inserted[k]);
+                if (sameRemoved && sameInserted) {
+                    result.push(...oOp.inserted);
+                    i += oOp.removed;
                 } else {
-                    for (const line of edit.lines) result.push(line);
+                    result.push('<<<<<<< Ours');
+                    result.push(...oOp.inserted);
+                    result.push('=======');
+                    result.push(...tOp.inserted);
+                    result.push('>>>>>>> Theirs');
+                    i += Math.max(oOp.removed, tOp.removed);
                 }
+            } else if (oHas) {
+                result.push(...oOp.inserted);
+                i += oOp.removed;
+            } else if (tHas) {
+                result.push(...tOp.inserted);
+                i += tOp.removed;
+            }
+
+            if (i < base.length) {
+                result.push(base[i]);
+                i++;
+            } else {
+                break;
             }
         }
-
-        // Add unchanged lines
-        const unchanged = [];
-        let pos = 0;
-        for (const part of dO) {
-            if (!part.added && !part.removed) {
-                for (const line of part.value) {
-                    unchanged.push({ pos: pos++, text: line });
-                }
-            } else if (part.removed) {
-                pos += part.value.length;
-            }
-        }
-
-        return result.length > 0 ? result : base;
+        return result;
     }
 
-    function collectEdits(diffResult) {
-        const edits = [];
-        let pos = 0;
-        for (const part of diffResult) {
+    /**
+     * Map<basePos, { removed, inserted }> describing how `target` differs
+     * from `base`. basePos is the index in base where the edit starts;
+     * removed = base lines consumed; inserted = replacement lines.
+     */
+    function buildOpsByBase(base, target) {
+        const ops = new Map();
+        const parts = Diff.diffArrays(base, target);
+        let basePos = 0;
+        for (let p = 0; p < parts.length; p++) {
+            const part = parts[p];
             if (!part.added && !part.removed) {
-                pos += part.value.length;
+                basePos += part.value.length;
+                continue;
+            }
+            const next = parts[p + 1];
+            if (part.removed && next && next.added) {
+                ops.set(basePos, { removed: part.value.length, inserted: next.value.slice() });
+                basePos += part.value.length;
+                p++;
             } else if (part.removed) {
-                edits.push({ start: pos, end: pos + part.value.length - 1, lines: [], type: 'removed' });
-                pos += part.value.length;
+                ops.set(basePos, { removed: part.value.length, inserted: [] });
+                basePos += part.value.length;
             } else if (part.added) {
-                edits.push({ start: pos, end: pos, lines: part.value, type: 'added' });
+                const existing = ops.get(basePos);
+                if (existing) existing.inserted.push(...part.value);
+                else ops.set(basePos, { removed: 0, inserted: part.value.slice() });
             }
         }
-        return edits;
-    }
-
-    function rangesOverlap(s1, e1, s2, e2) {
-        return s1 <= e2 && s2 <= e1;
+        return ops;
     }
 
     /* ==================== Core Compare ==================== */
@@ -854,7 +957,7 @@ const App = (() => {
                 if (isMergeMode) { mergeDecisions = {}; updateMergeOutput(); }
             }
 
-            if (els.statTotal.textContent !== '0') {
+            if (!cacheValid && els.statTotal.textContent !== '0') {
                 Storage.saveRecord(original, modified, { added: parseInt(els.statAdded.textContent), deleted: parseInt(els.statDeleted.textContent), modified: parseInt(els.statModified.textContent) });
             }
         } catch (e) {
@@ -864,8 +967,6 @@ const App = (() => {
 
     /* ==================== Scroll Sync ==================== */
     let _syncHandlers = { diff: null, original: null, modified: null };
-    const LH = DiffEngine.LINE_HEIGHT; // 19.5px
-    const PAD = 8; // editor and diff-output top padding
     let _rowIndex = null;
 
     function buildRowIndex() {
@@ -997,15 +1098,19 @@ const App = (() => {
             });
         }
 
-        // Find nearest line number in the map
+        // Find nearest line number in the map. Searches the full map range
+        // so very large added/deleted blocks don't fall through.
         function findNearestLine(map, target) {
             if (map.has(target)) return target;
-            // Search outward from target
-            for (let d = 1; d < 50; d++) {
-                if (map.has(target + d)) return target + d;
-                if (map.has(target - d)) return target - d;
+            const keys = Array.from(map.keys());
+            if (keys.length === 0) return target;
+            let best = keys[0];
+            let bestDist = Math.abs(best - target);
+            for (let i = 1; i < keys.length; i++) {
+                const d = Math.abs(keys[i] - target);
+                if (d < bestDist) { best = keys[i]; bestDist = d; }
             }
-            return target;
+            return best;
         }
 
         _syncHandlers.diff = syncToEditors;
@@ -1021,12 +1126,10 @@ const App = (() => {
     function updateLineNumbers(side) {
         const textarea = side === 'original' ? els.originalText : els.modifiedText;
         const lineNums = side === 'original' ? els.originalLineNums : els.modifiedLineNums;
-        const lines = textarea.value.split('\n');
-        let html = '';
-        for (let i = 1; i <= lines.length; i++) {
-            html += `<span>${i}</span>`;
-        }
-        lineNums.innerHTML = html;
+        const count = (textarea.value.match(/\n/g) || []).length + 1;
+        const parts = new Array(count);
+        for (let i = 0; i < count; i++) parts[i] = '<span>' + (i + 1) + '</span>';
+        lineNums.innerHTML = parts.join('');
     }
 
     async function handleFileUpload(file, side) {
@@ -1182,41 +1285,58 @@ const App = (() => {
 
     function renderHistoryList() {
         const records = Storage.getHistory();
+        els.historyList.textContent = '';
         if (records.length === 0) {
-            els.historyList.innerHTML = '<p class="empty-state">暂无历史记录</p>';
+            const empty = document.createElement('p');
+            empty.className = 'empty-state';
+            empty.textContent = '暂无历史记录';
+            els.historyList.appendChild(empty);
             return;
         }
 
-        els.historyList.textContent = '';
         for (const record of records) {
             const time = Storage.formatTime(record.timestamp);
             const preview = (record.original || '').slice(0, 60).replace(/\n/g, ' ');
-            const safeId = DiffEngine.escapeHtml(record.id);
-            const safeAdded = Number(record.stats.added) || 0;
-            const safeDeleted = Number(record.stats.deleted) || 0;
-            const safeModified = Number(record.stats.modified) || 0;
+            const added = Number(record.stats.added) || 0;
+            const deleted = Number(record.stats.deleted) || 0;
+            const modified = Number(record.stats.modified) || 0;
 
             const item = document.createElement('div');
             item.className = 'history-item';
             item.dataset.id = record.id;
-            item.innerHTML = `
-                    <div class="history-item-info">
-                        <div class="history-item-title">${DiffEngine.escapeHtml(preview)}...</div>
-                        <div class="history-item-meta">${DiffEngine.escapeHtml(time)} · ✓${safeAdded} ✗${safeDeleted} ○${safeModified}</div>
-                    </div>
-                    <div class="history-item-actions">
-                        <button class="btn-icon" data-action="load" data-id="${safeId}" title="加载">📂</button>
-                        <button class="btn-icon" data-action="delete" data-id="${safeId}" title="删除">🗑</button>
-                    </div>`;
+
+            const info = document.createElement('div');
+            info.className = 'history-item-info';
+            const title = document.createElement('div');
+            title.className = 'history-item-title';
+            title.textContent = preview + '...';
+            const meta = document.createElement('div');
+            meta.className = 'history-item-meta';
+            meta.textContent = `${time} · ✓${added} ✗${deleted} ○${modified}`;
+            info.appendChild(title);
+            info.appendChild(meta);
+
+            const actions = document.createElement('div');
+            actions.className = 'history-item-actions';
+            const loadBtn = document.createElement('button');
+            loadBtn.className = 'btn-icon';
+            loadBtn.title = '加载';
+            loadBtn.setAttribute('aria-label', '加载历史记录');
+            loadBtn.textContent = '📂';
+            loadBtn.addEventListener('click', (e) => { e.stopPropagation(); loadHistoryRecord(record.id); });
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn-icon';
+            delBtn.title = '删除';
+            delBtn.setAttribute('aria-label', '删除历史记录');
+            delBtn.textContent = '🗑';
+            delBtn.addEventListener('click', (e) => { e.stopPropagation(); Storage.deleteRecord(record.id); renderHistoryList(); showToast('记录已删除'); });
+            actions.appendChild(loadBtn);
+            actions.appendChild(delBtn);
+
+            item.appendChild(info);
+            item.appendChild(actions);
             els.historyList.appendChild(item);
         }
-
-        els.historyList.querySelectorAll('[data-action="load"]').forEach(btn => {
-            btn.addEventListener('click', (e) => { e.stopPropagation(); loadHistoryRecord(btn.dataset.id); });
-        });
-        els.historyList.querySelectorAll('[data-action="delete"]').forEach(btn => {
-            btn.addEventListener('click', (e) => { e.stopPropagation(); Storage.deleteRecord(btn.dataset.id); renderHistoryList(); showToast('记录已删除'); });
-        });
     }
 
     function loadHistoryRecord(id) {
