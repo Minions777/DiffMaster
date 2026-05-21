@@ -4,7 +4,12 @@
  */
 const DiffEngine = (() => {
 
-    const LINE_HEIGHT = 19.5; // Must match editor line-height: 13px * 1.5
+    // Shared configuration constants (single source of truth)
+    const CONFIG = {
+        LINE_HEIGHT: 19.5,   // Must match editor line-height: 13px * 1.5
+        FOLD_CONTEXT_LINES: 3,
+    };
+    const LINE_HEIGHT = CONFIG.LINE_HEIGHT;
 
     /**
      * Compute line-by-line diff
@@ -366,7 +371,7 @@ const DiffEngine = (() => {
             if (hiddenStart !== -1) {
                 const hiddenCount = i - hiddenStart;
                 const foldHeight = hiddenCount * LINE_HEIGHT;
-                html += `<div class="diff-fold" data-start="${hiddenStart}" data-end="${i}" data-lines="${hiddenCount}" data-gen="${currentDiffGeneration}" style="height:${foldHeight}px" onclick="DiffEngine.expandFold(this)">`;
+                html += `<div class="diff-fold" data-start="${hiddenStart}" data-end="${i}" data-lines="${hiddenCount}" data-gen="${currentDiffGeneration}" style="height:${foldHeight}px">`;
                 html += `⋯ ${hiddenCount} 行未变化内容（点击展开）`;
                 html += `</div>`;
                 hiddenStart = -1;
@@ -422,7 +427,7 @@ const DiffEngine = (() => {
         if (hiddenStart !== -1) {
             const hiddenCount = totalRows - hiddenStart;
             const foldHeight = hiddenCount * LINE_HEIGHT;
-            html += `<div class="diff-fold" data-start="${hiddenStart}" data-end="${totalRows}" data-lines="${hiddenCount}" data-gen="${currentDiffGeneration}" style="height:${foldHeight}px" onclick="DiffEngine.expandFold(this)">`;
+            html += `<div class="diff-fold" data-start="${hiddenStart}" data-end="${totalRows}" data-lines="${hiddenCount}" data-gen="${currentDiffGeneration}" style="height:${foldHeight}px">`;
             html += `⋯ ${hiddenCount} 行未变化内容（点击展开）`;
             html += `</div>`;
         }
@@ -480,10 +485,10 @@ const DiffEngine = (() => {
 
             if (hiddenStart !== -1) {
                 const hiddenCount = i - hiddenStart;
-                html += `<div class="diff-fold" onclick="this.nextElementSibling.style.display='';this.remove();">`;
+                html += `<div class="diff-fold diff-fold-unified">`;
                 html += `⋯ ${hiddenCount} 行未变化内容（点击展开）`;
                 html += `</div>`;
-                html += `<div style="display:none;">`;
+                html += `<div class="diff-fold-hidden" style="display:none;">`;
                 for (let k = hiddenStart; k < i; k++) {
                     const l = lines[k];
                     html += `<div class="diff-unified-row diff-unified-unchanged" data-line="${k}">`;
@@ -518,9 +523,9 @@ const DiffEngine = (() => {
         const start = parseInt(foldEl.dataset.start);
         const end = parseInt(foldEl.dataset.end);
         const gen = parseInt(foldEl.dataset.gen);
-        const rows = currentDiffRows;
+        const rows = _rowRegistry.get(gen);
 
-        if (!rows || gen !== currentDiffGeneration) return;
+        if (!rows) return;
 
         let html = '';
         for (let i = start; i < end; i++) {
@@ -589,21 +594,26 @@ const DiffEngine = (() => {
         return result.join('\n');
     }
 
-    // Store rows for fold expansion with generation tracking
-    let currentDiffRows = null;
+    // Generation-keyed row registry for fold expansion (replaces global mutable state)
+    const _rowRegistry = new Map();
     let currentDiffGeneration = 0;
 
     /**
      * Render and store rows (call from app.js)
      */
     function render(rows, mode, lang, mergeMode) {
-        currentDiffRows = rows;
         currentDiffGeneration++;
+        _rowRegistry.set(currentDiffGeneration, rows);
+        // Clean up old generations (keep only last 3)
+        for (const key of _rowRegistry.keys()) {
+            if (key < currentDiffGeneration - 2) _rowRegistry.delete(key);
+        }
         return renderSideBySide(rows, mode, lang, mergeMode);
     }
 
     return {
         LINE_HEIGHT,
+        CONFIG,
         diffLines, diffWords, diffChars, diffJson,
         buildSideBySide, buildUnified,
         highlightInlineChanges, escapeHtml,
