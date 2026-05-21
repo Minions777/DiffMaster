@@ -1142,3 +1142,222 @@ select:focus {
         width: 100%;
     }
 }
+
+/* ========== Print Styles ========== */
+@media print {
+    html, body {
+        overflow: visible;
+        height: auto;
+        background: #fff !important;
+        color: #000 !important;
+    }
+    .header, .toolbar, .stats-bar, .mode-tabs,
+    .resize-handle, .find-bar,
+    .merge-panel, .merge3-section, .image-diff-section,
+    .theme-toggle, #btnSwap, #btnClear, #btnHistory,
+    #btnExport, #btnShare, #btnMergeMode, #btnCompare,
+    .panel-controls, .encoding-select, .sort-controls {
+        display: none !important;
+    }
+    .main-content {
+        overflow: visible !important;
+        height: auto !important;
+        flex-direction: row !important;
+    }
+    .input-panel {
+        display: none !important;
+    }
+    .diff-panel {
+        flex: 1 !important;
+        min-width: 0 !important;
+        border: none !important;
+        /* Ensure full visible content */
+        overflow: visible !important;
+        height: auto !important;
+    }
+    .diff-output {
+        overflow: visible !important;
+        height: auto !important;
+        padding: 0 !important;
+    }
+    .diff-output-wrap {
+        overflow: visible !important;
+        height: auto !important;
+    }
+    .diff-row {
+        break-inside: avoid;
+    }
+    .diff-fold {
+        display: none !important;
+    }
+    .diff-placeholder {
+        display: none !important;
+    }
+    .diff-line-added {
+        background: #e6ffec !important;
+    }
+    .diff-line-deleted {
+        background: #ffebe9 !important;
+    }
+    .diff-line-empty {
+        background: #f6f8fa !important;
+    }
+    .diff-line-unchanged .diff-line-content {
+        color: #555 !important;
+    }
+    .diff-line-num {
+        color: #999 !important;
+    }
+    .stats-bar {
+        display: flex !important;
+        break-after: avoid;
+        padding: 4px 0;
+        margin-bottom: 8px;
+        border: none;
+        background: none !important;
+    }
+    .toast {
+        display: none !important;
+    }
+}
+
+/* ========== Sort controls hidden (non-JSON content) ========== */
+.sort-controls.hidden {
+    display: none !important;
+}
+
+/* ========== Image size warning ========== */
+.image-size-warning {
+    color: var(--accent-yellow);
+    font-size: 12px;
+    padding: 4px 8px;
+    text-align: center;
+}
+
+/* ========== Find Regex Toggle ========== */
+.find-regex {
+    font-size: 11px;
+    color: var(--text-muted);
+    border: 1px dashed var(--border-color);
+}
+.find-regex.active {
+    color: var(--accent-blue);
+    border-color: var(--accent-blue);
+    border-style: solid;
+}
+.find-regex:hover {
+    background: rgba(9, 105, 218, 0.1);
+}
+
+/* ========== Line Number Hover & Click ========== */
+.diff-line-num {
+    cursor: pointer;
+    user-select: none;
+    transition: background var(--transition), color var(--transition);
+}
+.diff-line-num:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+.diff-line-num.selected {
+    background: var(--accent-blue);
+    color: #fff;
+}
+
+/* ========== Diff Search Bar ========== */
+.diff-search-bar {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    padding: 4px 12px;
+    flex-shrink: 0;
+}
+.diff-search-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.diff-search-input {
+    flex: 1;
+    padding: 4px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-family: var(--font-mono);
+    outline: none;
+}
+.diff-search-input:focus {
+    border-color: var(--accent-blue);
+}
+.diff-search-count {
+    font-size: 11px;
+    color: var(--text-muted);
+    min-width: 40px;
+    text-align: center;
+}
+
+/* ========== Drag Overlay for Diff Panel ========== */
+.diff-panel.dragover::after {
+    content: '释放以上传文件到 Original 面板';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(88, 166, 255, 0.15);
+    color: var(--accent-blue);
+    font-size: 16px;
+    font-weight: 600;
+    pointer-events: none;
+    z-index: 10;
+    border: 2px dashed var(--accent-blue);
+    border-radius: var(--radius-lg);
+}
+
+/* ========== Stats Chart ========== */
+.stats-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 24px;
+    margin-left: auto;
+}
+.stat-bar {
+    width: 6px;
+    border-radius: 2px 2px 0 0;
+    transition: height var(--transition);
+}
+.stat-bar-added { background: var(--accent-green); }
+.stat-bar-deleted { background: var(--accent-red); }
+.stat-bar-modified { background: var(--accent-yellow); }
+
+/* ========== Highlighted Search Result in Diff ========== */
+.diff-search-highlight {
+    background: rgba(255, 214, 0, 0.5);
+    border-radius: 2px;
+    padding: 0;
+}
+
+/* ========== Copy Toast ========== */
+.copy-toast {
+    position: fixed;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--accent-green);
+    border-radius: var(--radius-md);
+    color: var(--accent-green);
+    font-size: 12px;
+    z-index: 2001;
+    animation: toast-in 0.2s ease;
+}
+
+/* ========== Auto Compare Indicator ========== */
+#optAutoCompare:checked + span::after {
+    content: '●';
+    color: var(--accent-green);
+    margin-left: 2px;
+}
