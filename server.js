@@ -23,12 +23,42 @@ const securityHeaders = {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Content-Security-Policy': [
+        "default-src 'self'",
+        "script-src 'self' https://cdn.jsdelivr.net",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: blob:",
+        "font-src 'self' data:",
+        "connect-src 'self'",
+        "frame-ancestors 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "object-src 'none'",
+    ].join('; '),
 };
 
 const s = http.createServer((req, res) => {
-    const urlPath = decodeURIComponent(req.url.split('?')[0]);
+    let urlPath;
+    try {
+        urlPath = decodeURIComponent(req.url.split('?')[0]);
+    } catch {
+        res.writeHead(400, securityHeaders);
+        res.end('Bad Request');
+        return;
+    }
+
+    // Reject any path traversal segments before normalization. path.normalize
+    // collapses `..` against the URL root, which can mask a traversal attempt
+    // by leaving a request inside ROOT but accessing files the server
+    // shouldn't expose. Hard-fail instead.
+    const segments = urlPath.split(/[\\/]/);
+    if (segments.includes('..') || urlPath.includes('\0')) {
+        res.writeHead(403, securityHeaders);
+        res.end('Forbidden');
+        return;
+    }
+
     let safePath = path.normalize(urlPath);
-    // Normalize path separators for Windows compatibility
     safePath = safePath.replace(/\\/g, '/');
     const isRoot = safePath === '/' || safePath === '\\';
     let f = isRoot ? 'index.html' : safePath;
@@ -49,7 +79,7 @@ const s = http.createServer((req, res) => {
             ...securityHeaders,
         });
         res.end(d);
-    } catch (e) {
+    } catch {
         res.writeHead(404, securityHeaders);
         res.end('Not Found');
     }
