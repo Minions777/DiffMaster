@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DiffMaster - 内容对比工具</title>
     <link rel="stylesheet" href="css/styles.css">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/diff@5.2.0/dist/diff.min.js" as="script" crossorigin="anonymous">
 </head>
 <body>
     <!-- Header -->
@@ -342,29 +343,29 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/diff@5.2.0/dist/diff.min.js"
             integrity="sha384-lJJVaUgxmk/PVfQnAsGN1QuJZrE+n6bg2EMu33yVZOJ2av/3UzTHbmnPCI7ENJYa"
-            crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js"
+            crossorigin="anonymous" defer></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.common.min.js"
             integrity="sha384-5yxvCQJ/5mlSMbO4D+C7gCRI73t5QwCCeIacEpdHGNmUaSw1Lcc/yBOkvouwUYoO"
-            crossorigin="anonymous"></script>
+            crossorigin="anonymous" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"
             integrity="sha384-0d+Gr7vM4Drod8E3hXKgciWJSWbjD/opKLLygI9ktiWbuvlDwQLzU46wJ9s5gsp7"
-            crossorigin="anonymous"></script>
+            crossorigin="anonymous" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"
             integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H"
             crossorigin="anonymous" defer></script>
-    <script src="js/cdn-check.js"></script>
-    <script src="js/encoding.js"></script>
-    <script src="js/diff-engine.js"></script>
-    <script src="js/sorting.js"></script>
-    <script src="js/storage.js"></script>
-    <script src="js/theme.js"></script>
-    <script src="js/find-replace.js"></script>
-    <script src="js/image-diff.js"></script>
-    <script src="js/resize.js"></script>
-    <script src="js/sync-scroll.js"></script>
-    <script src="js/history-ui.js"></script>
-    <script src="js/merge.js"></script>
-    <script src="js/export.js"></script>
-    <script src="js/app.js"></script>
+    <script src="js/cdn-check.js" defer></script>
+    <script src="js/encoding.js" defer></script>
+    <script src="js/diff-engine.js" defer></script>
+    <script src="js/sorting.js" defer></script>
+    <script src="js/storage.js" defer></script>
+    <script src="js/theme.js" defer></script>
+    <script src="js/find-replace.js" defer></script>
+    <script src="js/image-diff.js" defer></script>
+    <script src="js/resize.js" defer></script>
+    <script src="js/sync-scroll.js" defer></script>
+    <script src="js/history-ui.js" defer></script>
+    <script src="js/merge.js" defer></script>
+    <script src="js/export.js" defer></script>
+    <script src="js/app.js" defer></script>
 </body>
 </html>

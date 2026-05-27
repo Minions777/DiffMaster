@@ -4,27 +4,47 @@
  */
 const ImageDiff = (() => {
     const MAX_IMAGE_DIMENSION = 5000;
+    const PIXEL_DIFF_THRESHOLD = 30;
 
     let _originalImage = null;
     let _modifiedImage = null;
     let _swiping = false;
+    let _onMouseMove = null;
+    let _onMouseUp = null;
+
+    function clearImages() {
+        _originalImage = null;
+        _modifiedImage = null;
+    }
+
+    function cleanup() {
+        if (_onMouseMove) { document.removeEventListener('mousemove', _onMouseMove); _onMouseMove = null; }
+        if (_onMouseUp) { document.removeEventListener('mouseup', _onMouseUp); _onMouseUp = null; }
+        _swiping = false;
+        clearImages();
+    }
 
     function init(imageUploadOriginal, imageUploadModified, imageDiffResult, imageDiffCanvas, imageSwipeHandle, imageDiffMode, showToast) {
         _showToast = showToast;
+
+        // Clean up any previous listeners before re-init
+        cleanup();
 
         setupZone(imageUploadOriginal, 'original');
         setupZone(imageUploadModified, 'modified');
 
         // Swipe handle
         imageSwipeHandle.addEventListener('mousedown', (e) => { e.preventDefault(); _swiping = true; });
-        document.addEventListener('mousemove', (e) => {
+        _onMouseMove = (e) => {
             if (!_swiping) return;
             const rect = imageDiffResult.getBoundingClientRect();
             const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
             imageSwipeHandle.style.left = x + 'px';
             updateSwipeClip(x, rect.width, imageDiffCanvas);
-        });
-        document.addEventListener('mouseup', () => { _swiping = false; });
+        };
+        _onMouseUp = () => { _swiping = false; };
+        document.addEventListener('mousemove', _onMouseMove);
+        document.addEventListener('mouseup', _onMouseUp);
 
         return { doCompare: () => _doCompare(imageDiffMode, imageDiffCanvas, imageSwipeHandle, imageDiffResult) };
     }
@@ -134,7 +154,7 @@ const ImageDiff = (() => {
                 const dr = Math.abs(oData.data[i] - mData.data[i]);
                 const dg = Math.abs(oData.data[i + 1] - mData.data[i + 1]);
                 const db = Math.abs(oData.data[i + 2] - mData.data[i + 2]);
-                if (dr + dg + db > 30) {
+                if (dr + dg + db > PIXEL_DIFF_THRESHOLD) {
                     diffData.data[i] = 255; diffData.data[i + 1] = 0; diffData.data[i + 2] = 0; diffData.data[i + 3] = 255;
                 } else {
                     diffData.data[i] = oData.data[i]; diffData.data[i + 1] = oData.data[i + 1]; diffData.data[i + 2] = oData.data[i + 2]; diffData.data[i + 3] = 100;
@@ -162,5 +182,5 @@ const ImageDiff = (() => {
 
     function getImages() { return { original: _originalImage, modified: _modifiedImage }; }
 
-    return { init, getImages };
+    return { init, getImages, clearImages, cleanup };
 })();

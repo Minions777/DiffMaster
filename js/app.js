@@ -35,6 +35,8 @@ const App = (() => {
     let mergeApi = null;
     let historyApi = null;
     let syncApi = null;
+    let imageDiffApi = null;
+    let findReplaceApis = { original: null, modified: null };
 
     function init() {
         cacheElements();
@@ -222,36 +224,73 @@ const App = (() => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); doCompare(); }
             if (e.key === 'Escape') {
                 if (els.historyModal.style.display !== 'none') els.historyModal.style.display = 'none';
-                closeFindBar('original');
-                closeFindBar('modified');
+                if (findReplaceApis.original) findReplaceApis.original.close();
+                if (findReplaceApis.modified) findReplaceApis.modified.close();
                 if (els.diffSearchBar && els.diffSearchBar.style.display !== 'none') els.diffSearchBar.style.display = 'none';
             }
             if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
                 const activeSide = document.activeElement === els.originalText ? 'original'
                     : document.activeElement === els.modifiedText ? 'modified' : null;
-                if (activeSide) { e.preventDefault(); toggleFindBar(activeSide); }
+                if (activeSide) {
+                    e.preventDefault();
+                    const api = findReplaceApis[activeSide];
+                    if (api) api.open();
+                }
                 else if (currentDiffData) { e.preventDefault(); toggleDiffSearch(); }
             }
         });
 
         ['original', 'modified'].forEach(side => {
+            const textarea = side === 'original' ? els.originalText : els.modifiedText;
+            const findBar = side === 'original' ? els.findBarOriginal : els.findBarModified;
             const findInput = side === 'original' ? els.findInputOriginal : els.findInputModified;
+            const replaceInput = side === 'original' ? els.replaceInputOriginal : els.replaceInputModified;
             const findCase = $(side === 'original' ? 'findCaseOriginal' : 'findCaseModified');
-            const debouncedFind = debounce(() => doFind(side), 150);
-            findInput.addEventListener('input', debouncedFind);
-            findInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') { e.shiftKey ? findPrev(side) : findNext(side); }
-            });
-            findCase.addEventListener('change', () => doFind(side));
+            const countEl = side === 'original' ? els.findCountOriginal : els.findCountModified;
+
+            findReplaceApis[side] = FindReplace.createForSide(
+                side, textarea, findBar, findInput, replaceInput, findCase, countEl
+            );
         });
 
-        $$('.find-prev').forEach(btn => btn.addEventListener('click', () => findPrev(btn.dataset.side)));
-        $$('.find-next').forEach(btn => btn.addEventListener('click', () => findNext(btn.dataset.side)));
-        $$('.find-close').forEach(btn => btn.addEventListener('click', () => closeFindBar(btn.dataset.side)));
-        $('replaceOneOriginal').addEventListener('click', () => doReplace('original', false));
-        $('replaceAllOriginal').addEventListener('click', () => doReplace('original', true));
-        $('replaceOneModified').addEventListener('click', () => doReplace('modified', false));
-        $('replaceAllModified').addEventListener('click', () => doReplace('modified', true));
+        $$('.find-prev').forEach(btn => btn.addEventListener('click', () => {
+            const api = findReplaceApis[btn.dataset.side];
+            if (api) api.findPrev();
+        }));
+        $$('.find-next').forEach(btn => btn.addEventListener('click', () => {
+            const api = findReplaceApis[btn.dataset.side];
+            if (api) api.findNext();
+        }));
+        $$('.find-close').forEach(btn => btn.addEventListener('click', () => {
+            const api = findReplaceApis[btn.dataset.side];
+            if (api) api.close();
+        }));
+        $('replaceOneOriginal').addEventListener('click', () => {
+            if (findReplaceApis.original) {
+                findReplaceApis.original.replace(false);
+                updateLineNumbers('original');
+            }
+        });
+        $('replaceAllOriginal').addEventListener('click', () => {
+            if (findReplaceApis.original) {
+                findReplaceApis.original.replace(true);
+                updateLineNumbers('original');
+                showToast('已替换全部匹配', 'success');
+            }
+        });
+        $('replaceOneModified').addEventListener('click', () => {
+            if (findReplaceApis.modified) {
+                findReplaceApis.modified.replace(false);
+                updateLineNumbers('modified');
+            }
+        });
+        $('replaceAllModified').addEventListener('click', () => {
+            if (findReplaceApis.modified) {
+                findReplaceApis.modified.replace(true);
+                updateLineNumbers('modified');
+                showToast('已替换全部匹配', 'success');
+            }
+        });
 
         $$('.find-regex').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -259,7 +298,11 @@ const App = (() => {
                 const side = btn.dataset.side || (btn.id.includes('Original') ? 'original' : 'modified');
                 const findInput = side === 'original' ? els.findInputOriginal : els.findInputModified;
                 findInput.dataset.regex = btn.classList.contains('active') ? 'true' : 'false';
-                doFind(side);
+                const api = findReplaceApis[side];
+                if (api) {
+                    // Trigger re-search by dispatching input event
+                    findInput.dispatchEvent(new Event('input'));
+                }
             });
         });
 
@@ -337,7 +380,7 @@ const App = (() => {
             tab.addEventListener('click', () => switchMode(tab.dataset.mode));
         });
 
-        ImageDiff.init(
+        imageDiffApi = ImageDiff.init(
             els.imageUploadOriginal,
             els.imageUploadModified,
             els.imageDiffResult,
@@ -347,12 +390,7 @@ const App = (() => {
             showToast
         );
         els.btnImageCompare.addEventListener('click', () => {
-            const api = ImageDiff.init(
-                els.imageUploadOriginal, els.imageUploadModified,
-                els.imageDiffResult, els.imageDiffCanvas,
-                els.imageSwipeHandle, els.imageDiffMode, showToast
-            );
-            api.doCompare();
+            if (imageDiffApi) imageDiffApi.doCompare();
         });
 
         els.btnMerge3.addEventListener('click', () => mergeApi.do3WayMerge());
@@ -368,114 +406,7 @@ const App = (() => {
         els.mainContent.style.display = mode === 'text' ? '' : 'none';
         els.imageDiffSection.style.display = mode === 'image' ? '' : 'none';
         els.merge3Section.style.display = mode === 'merge3' ? '' : 'none';
-    }
-
-    /* ==================== Find/Replace (editors) ==================== */
-    let _findMatches = { original: [], modified: [] };
-    let _findIndex = { original: -1, modified: -1 };
-
-    function toggleFindBar(side) {
-        const bar = side === 'original' ? els.findBarOriginal : els.findBarModified;
-        const input = side === 'original' ? els.findInputOriginal : els.findInputModified;
-        if (bar.style.display === 'none') {
-            bar.style.display = '';
-            input.focus();
-            const textarea = side === 'original' ? els.originalText : els.modifiedText;
-            const sel = textarea.value.substring(textarea.selectionStart, textarea.selectionEnd);
-            if (sel) { input.value = sel; doFind(side); }
-        } else {
-            closeFindBar(side);
-        }
-    }
-
-    function closeFindBar(side) {
-        const bar = side === 'original' ? els.findBarOriginal : els.findBarModified;
-        bar.style.display = 'none';
-        _findMatches[side] = [];
-        _findIndex[side] = -1;
-    }
-
-    function doFind(side) {
-        const textarea = side === 'original' ? els.originalText : els.modifiedText;
-        const input = side === 'original' ? els.findInputOriginal : els.findInputModified;
-        const countEl = side === 'original' ? els.findCountOriginal : els.findCountModified;
-        const caseEl = $(side === 'original' ? 'findCaseOriginal' : 'findCaseModified');
-        const query = input.value;
-
-        if (!query) { _findMatches[side] = []; _findIndex[side] = -1; countEl.textContent = '0/0'; return; }
-
-        const text = textarea.value;
-        const flags = caseEl.checked ? 'g' : 'gi';
-        const matches = [];
-        try {
-            const pattern = input.dataset && input.dataset.regex === 'true'
-                ? query
-                : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const re = new RegExp(pattern, flags);
-            let m;
-            while ((m = re.exec(text)) !== null) {
-                matches.push({ start: m.index, end: m.index + m[0].length });
-                if (matches.length > 10000) break;
-            }
-        } catch { /* invalid regex */ }
-
-        _findMatches[side] = matches;
-        _findIndex[side] = matches.length > 0 ? 0 : -1;
-        countEl.textContent = matches.length > 0 ? `1/${matches.length}` : '0/0';
-        if (matches.length > 0) highlightFind(side);
-    }
-
-    function findNext(side) {
-        const matches = _findMatches[side];
-        if (matches.length === 0) return;
-        _findIndex[side] = (_findIndex[side] + 1) % matches.length;
-        highlightFind(side);
-    }
-
-    function findPrev(side) {
-        const matches = _findMatches[side];
-        if (matches.length === 0) return;
-        _findIndex[side] = (_findIndex[side] - 1 + matches.length) % matches.length;
-        highlightFind(side);
-    }
-
-    function highlightFind(side) {
-        const textarea = side === 'original' ? els.originalText : els.modifiedText;
-        const countEl = side === 'original' ? els.findCountOriginal : els.findCountModified;
-        const match = _findMatches[side][_findIndex[side]];
-        if (!match) return;
-        textarea.focus();
-        textarea.setSelectionRange(match.start, match.end);
-        countEl.textContent = `${_findIndex[side] + 1}/${_findMatches[side].length}`;
-        const linesBefore = textarea.value.substring(0, match.start).split('\n').length;
-        textarea.scrollTop = (linesBefore - 3) * LH;
-    }
-
-    function doReplace(side, all) {
-        const textarea = side === 'original' ? els.originalText : els.modifiedText;
-        const findInput = side === 'original' ? els.findInputOriginal : els.findInputModified;
-        const replaceInput = side === 'original' ? els.replaceInputOriginal : els.replaceInputModified;
-        const caseEl = $(side === 'original' ? 'findCaseOriginal' : 'findCaseModified');
-        const query = findInput.value;
-        const replacement = replaceInput.value;
-
-        if (!query) return;
-
-        if (all) {
-            const flags = caseEl.checked ? 'g' : 'gi';
-            const pattern = findInput.dataset && findInput.dataset.regex === 'true'
-                ? query
-                : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            textarea.value = textarea.value.replace(new RegExp(pattern, flags), replacement);
-            showToast(`已替换全部匹配`, 'success');
-        } else {
-            const match = _findMatches[side][_findIndex[side]];
-            if (!match) return;
-            textarea.value = textarea.value.substring(0, match.start) + replacement + textarea.value.substring(match.end);
-            showToast('已替换 1 处', 'success');
-        }
-        updateLineNumbers(side);
-        doFind(side);
+        if (mode !== 'image') ImageDiff.clearImages();
     }
 
     function scrollToLine(side, lineNum) {
@@ -624,8 +555,9 @@ const App = (() => {
                 && _diffCache.optKey === optKey;
 
             if (!cacheValid) {
-                const sideBySide = DiffEngine.buildSideBySide(original, modified, diffOptions);
-                const unified = DiffEngine.buildUnified(original, modified, diffOptions);
+                const rawDiff = DiffEngine.computeRawDiff(original, modified, diffOptions);
+                const sideBySide = DiffEngine.buildSideBySideFromRaw(rawDiff);
+                const unified = DiffEngine.buildUnifiedFromRaw(rawDiff);
                 _diffCache = { original, modified, optKey, sideBySide, unified };
             }
 

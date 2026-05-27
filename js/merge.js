@@ -30,15 +30,9 @@ const MergeManager = (() => {
         _isMergeMode = !_isMergeMode;
         els.btnMergeMode.classList.toggle('btn-primary', _isMergeMode);
         els.btnMergeMode.classList.toggle('btn-secondary', !_isMergeMode);
-        if (_isMergeMode) {
-            _decisions = {};
-            els.mergePanel.style.display = '';
-            if (_deps.getCurrentDiffData()) _deps.doCompare();
-        } else {
-            els.mergePanel.style.display = 'none';
-            _decisions = {};
-            if (_deps.getCurrentDiffData()) _deps.doCompare();
-        }
+        els.mergePanel.style.display = _isMergeMode ? '' : 'none';
+        _decisions = {};
+        if (_deps.getCurrentDiffData()) _deps.doCompare();
     }
 
     function applyDecision(rowIdx, action) {

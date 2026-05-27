@@ -23,6 +23,8 @@ const securityHeaders = {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Cache-Control': 'public, max-age=3600',
     'Content-Security-Policy': [
         "default-src 'self'",
         "script-src 'self' https://cdn.jsdelivr.net",

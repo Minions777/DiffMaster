@@ -12,9 +12,9 @@ const DiffEngine = (() => {
     const LINE_HEIGHT = CONFIG.LINE_HEIGHT;
 
     /**
-     * Compute line-by-line diff
+     * Compute raw diff result (shared between buildSideBySide and buildUnified)
      */
-    function diffLines(oldText, newText, options) {
+    function computeRawDiff(oldText, newText, options) {
         return Diff.diffLines(oldText, newText, options);
     }
 
@@ -40,24 +40,25 @@ const DiffEngine = (() => {
     }
 
     /**
-     * Build side-by-side diff lines with statistics
-     * Returns paired rows: each row has { left, right } with num, text, type
+     * Parse diff value into lines, handling trailing newline
      */
-    function buildSideBySide(oldText, newText, options) {
-        const diffResult = Diff.diffLines(oldText, newText, options);
+    function parseLines(val) {
+        const lines = val.split('\n');
+        if (!val.endsWith('\n') && lines[lines.length - 1] === '') {
+            lines.pop();
+        }
+        return lines;
+    }
+
+    /**
+     * Build side-by-side diff lines with statistics from raw diff result
+     */
+    function buildSideBySideFromRaw(diffResult) {
 
         const rows = [];
         let stats = { added: 0, deleted: 0, modified: 0, unchanged: 0 };
         let leftNum = 0;
         let rightNum = 0;
-
-        function parseLines(val) {
-            const lines = val.split('\n');
-            if (!val.endsWith('\n') && lines[lines.length - 1] === '') {
-                lines.pop();
-            }
-            return lines;
-        }
 
         let i = 0;
         while (i < diffResult.length) {
@@ -124,22 +125,22 @@ const DiffEngine = (() => {
     }
 
     /**
-     * Build unified diff lines
+     * Build side-by-side diff lines with statistics
+     * Returns paired rows: each row has { left, right } with num, text, type
      */
-    function buildUnified(oldText, newText, options) {
-        const diffResult = Diff.diffLines(oldText, newText, options);
+    function buildSideBySide(oldText, newText, options) {
+        const diffResult = computeRawDiff(oldText, newText, options);
+        return buildSideBySideFromRaw(diffResult);
+    }
+
+    /**
+     * Build unified diff lines from raw diff result
+     */
+    function buildUnifiedFromRaw(diffResult) {
         const lines = [];
         let stats = { added: 0, deleted: 0, modified: 0, unchanged: 0 };
         let oldNum = 0;
         let newNum = 0;
-
-        function parseLines(val) {
-            const parts = val.split('\n');
-            if (!val.endsWith('\n') && parts[parts.length - 1] === '') {
-                parts.pop();
-            }
-            return parts;
-        }
 
         for (const part of diffResult) {
             const textLines = parseLines(part.value);
@@ -166,6 +167,14 @@ const DiffEngine = (() => {
         }
 
         return { lines, stats };
+    }
+
+    /**
+     * Build unified diff lines
+     */
+    function buildUnified(oldText, newText, options) {
+        const diffResult = computeRawDiff(oldText, newText, options);
+        return buildUnifiedFromRaw(diffResult);
     }
 
     /**
@@ -302,136 +311,129 @@ const DiffEngine = (() => {
     }
 
     /**
+     * Compute which rows are visible (within contextLines of a change)
+     */
+    function _computeShowRow(rows, contextLines) {
+        const total = rows.length;
+        const show = new Array(total);
+        if (rows.every(r => r.left.type === 'unchanged' && r.right.type === 'unchanged')) {
+            show.fill(true);
+        } else {
+            show.fill(false);
+            for (let i = 0; i < total; i++) {
+                if (rows[i].left.type !== 'unchanged' || rows[i].right.type !== 'unchanged') {
+                    for (let j = Math.max(0, i - contextLines); j <= Math.min(total - 1, i + contextLines); j++) show[j] = true;
+                }
+            }
+        }
+        return show;
+    }
+
+    /**
+     * Collect texts for batch syntax highlighting from visible rows
+     */
+    function _collectHighlightTexts(rows, visibleIndices, mode, lang) {
+        const useHighlight = lang && lang !== 'auto' && lang !== 'plaintext';
+        if (!useHighlight) return { useHighlight: false, hlLeftResults: [], hlRightResults: [], hlLeftMap: new Map(), hlRightMap: new Map() };
+        const hlLeftTexts = [], hlRightTexts = [];
+        const hlLeftMap = new Map(), hlRightMap = new Map();
+        for (const i of visibleIndices) {
+            const { left, right } = rows[i];
+            if (mode === 'lines' || !(left.type === 'deleted' && right.type === 'added')) {
+                hlLeftMap.set(i, hlLeftTexts.length);
+                hlLeftTexts.push(left.text);
+                hlRightMap.set(i, hlRightTexts.length);
+                hlRightTexts.push(right.text);
+            }
+        }
+        return {
+            useHighlight: true,
+            hlLeftResults: syntaxHighlightLines(hlLeftTexts, lang),
+            hlRightResults: syntaxHighlightLines(hlRightTexts, lang),
+            hlLeftMap, hlRightMap,
+        };
+    }
+
+    /**
+     * Render a single diff row to HTML
+     */
+    function _renderDiffRow(row, i, mode, hl, mergeMode) {
+        const { left, right } = row;
+        const isModifiedPair = left.type === 'deleted' && right.type === 'added';
+        let leftContent, rightContent;
+        if (mode !== 'lines' && isModifiedPair) {
+            const inline = highlightInlineChanges(left.text, right.text, mode);
+            leftContent = inline.oldHtml;
+            rightContent = inline.newHtml;
+        } else if (hl.useHighlight) {
+            leftContent = hl.hlLeftResults[hl.hlLeftMap.get(i)];
+            rightContent = hl.hlRightResults[hl.hlRightMap.get(i)];
+        } else {
+            leftContent = escapeHtml(left.text);
+            rightContent = escapeHtml(right.text);
+        }
+        const lType = left.type;
+        const rType = right.type;
+        const lInd = lType === 'deleted' ? '✗' : lType === 'added' ? '✓' : '';
+        const rInd = rType === 'added' ? '✓' : rType === 'deleted' ? '✗' : '';
+        const hasChanges = lType !== 'unchanged' || rType !== 'unchanged';
+
+        let html = `<div class="diff-row${isModifiedPair ? ' diff-row-modified' : ''}${hasChanges && mergeMode ? ' has-changes' : ''}" data-left-line="${left.num != null ? left.num : -1}" data-right-line="${right.num != null ? right.num : -1}" data-row-idx="${i}">`;
+        html += `<div class="diff-side diff-side-left diff-line-${lType}">`;
+        html += `<span class="diff-line-num">${left.num != null ? left.num : ''}</span>`;
+        html += `<span class="diff-line-indicator">${lInd}</span>`;
+        html += `<span class="diff-line-content">${leftContent || '&nbsp;'}</span></div>`;
+        html += `<div class="diff-side diff-side-right diff-line-${rType}">`;
+        html += `<span class="diff-line-num">${right.num != null ? right.num : ''}</span>`;
+        html += `<span class="diff-line-indicator">${rInd}</span>`;
+        html += `<span class="diff-line-content">${rightContent || '&nbsp;'}</span></div>`;
+        if (mergeMode) {
+            html += `<div class="merge-actions">`;
+            if (lType === 'deleted' || rType === 'added') {
+                html += `<button class="merge-accept" data-row="${i}" title="接受修改">✓</button>`;
+                html += `<button class="merge-reject" data-row="${i}" title="拒绝修改">✗</button>`;
+            }
+            html += `</div>`;
+        }
+        html += `</div>`;
+        return html;
+    }
+
+    /**
+     * Render a fold marker for hidden unchanged rows
+     */
+    function _renderFoldHTML(start, end, hiddenCount, gen) {
+        const foldHeight = hiddenCount * LINE_HEIGHT;
+        return `<div class="diff-fold" data-start="${start}" data-end="${end}" data-lines="${hiddenCount}" data-gen="${gen}" style="height:${foldHeight}px">⋯ ${hiddenCount} 行未变化内容（点击展开）</div>`;
+    }
+
+    /**
      * Render side-by-side diff to HTML
      */
     function renderSideBySide(rows, mode, lang, mergeMode) {
-        const totalRows = rows.length;
-        const contextLines = 3;
+        if (rows.length === 0) return '';
 
-        if (totalRows === 0) return '';
-
-        const allUnchanged = rows.every(r => r.left.type === 'unchanged' && r.right.type === 'unchanged');
-
-        const showRow = new Array(totalRows);
-        if (allUnchanged) {
-            showRow.fill(true);
-        } else {
-            // Single-pass: mark context around changed rows
-            showRow.fill(false);
-            let lastChanged = -contextLines - 1;
-            // Forward pass: mark rows within contextLines after a change
-            for (let i = 0; i < totalRows; i++) {
-                if (rows[i].left.type !== 'unchanged' || rows[i].right.type !== 'unchanged') {
-                    const start = Math.max(0, i - contextLines);
-                    for (let j = start; j <= Math.min(totalRows - 1, i + contextLines); j++) {
-                        showRow[j] = true;
-                    }
-                }
-            }
-        }
-
-        // Pre-batch syntax highlighting for visible rows
+        const showRow = _computeShowRow(rows, 3);
         const visibleIndices = [];
-        for (let i = 0; i < totalRows; i++) {
-            if (showRow[i]) visibleIndices.push(i);
-        }
-
-        // Collect lines that need syntax highlighting (not inline-diff modified pairs)
-        const useHighlight = lang && lang !== 'auto' && lang !== 'plaintext';
-        const hlLeftTexts = [];
-        const hlRightTexts = [];
-        const hlLeftMap = new Map(); // rowIdx -> index in hlLeftTexts
-        const hlRightMap = new Map();
-
-        if (useHighlight) {
-            for (const i of visibleIndices) {
-                const { left, right } = rows[i];
-                const isModifiedPair = left.type === 'deleted' && right.type === 'added';
-                if (mode === 'lines' || !isModifiedPair) {
-                    hlLeftMap.set(i, hlLeftTexts.length);
-                    hlLeftTexts.push(left.text);
-                    hlRightMap.set(i, hlRightTexts.length);
-                    hlRightTexts.push(right.text);
-                }
-            }
-        }
-
-        const hlLeftResults = useHighlight ? syntaxHighlightLines(hlLeftTexts, lang) : [];
-        const hlRightResults = useHighlight ? syntaxHighlightLines(hlRightTexts, lang) : [];
+        for (let i = 0; i < rows.length; i++) { if (showRow[i]) visibleIndices.push(i); }
+        const hl = _collectHighlightTexts(rows, visibleIndices, mode, lang);
 
         let html = '';
         let hiddenStart = -1;
-
-        for (let i = 0; i < totalRows; i++) {
+        for (let i = 0; i < rows.length; i++) {
             if (!showRow[i]) {
                 if (hiddenStart === -1) hiddenStart = i;
                 continue;
             }
-
             if (hiddenStart !== -1) {
-                const hiddenCount = i - hiddenStart;
-                const foldHeight = hiddenCount * LINE_HEIGHT;
-                html += `<div class="diff-fold" data-start="${hiddenStart}" data-end="${i}" data-lines="${hiddenCount}" data-gen="${currentDiffGeneration}" style="height:${foldHeight}px">`;
-                html += `⋯ ${hiddenCount} 行未变化内容（点击展开）`;
-                html += `</div>`;
+                html += _renderFoldHTML(hiddenStart, i, i - hiddenStart, currentDiffGeneration);
                 hiddenStart = -1;
             }
-
-            const { left, right } = rows[i];
-
-            let leftContent, rightContent;
-            const isModifiedPair = left.type === 'deleted' && right.type === 'added';
-
-            if (mode !== 'lines' && isModifiedPair) {
-                const inline = highlightInlineChanges(left.text, right.text, mode);
-                leftContent = inline.oldHtml;
-                rightContent = inline.newHtml;
-            } else if (useHighlight) {
-                leftContent = hlLeftResults[hlLeftMap.get(i)];
-                rightContent = hlRightResults[hlRightMap.get(i)];
-            } else {
-                leftContent = escapeHtml(left.text);
-                rightContent = escapeHtml(right.text);
-            }
-
-            const leftType = left.type;
-            const rightType = right.type;
-            const leftIndicator = leftType === 'deleted' ? '✗' : leftType === 'added' ? '✓' : '';
-            const rightIndicator = rightType === 'added' ? '✓' : rightType === 'deleted' ? '✗' : '';
-            const hasChanges = leftType !== 'unchanged' || rightType !== 'unchanged';
-            const leftLineVal = left.num != null ? left.num : -1;
-            const rightLineVal = right.num != null ? right.num : -1;
-
-            html += `<div class="diff-row${isModifiedPair ? ' diff-row-modified' : ''}${hasChanges && mergeMode ? ' has-changes' : ''}" data-left-line="${leftLineVal}" data-right-line="${rightLineVal}" data-row-idx="${i}">`;
-            html += `<div class="diff-side diff-side-left diff-line-${leftType}">`;
-            html += `<span class="diff-line-num">${left.num != null ? left.num : ''}</span>`;
-            html += `<span class="diff-line-indicator">${leftIndicator}</span>`;
-            html += `<span class="diff-line-content">${leftContent || '&nbsp;'}</span>`;
-            html += `</div>`;
-            html += `<div class="diff-side diff-side-right diff-line-${rightType}">`;
-            html += `<span class="diff-line-num">${right.num != null ? right.num : ''}</span>`;
-            html += `<span class="diff-line-indicator">${rightIndicator}</span>`;
-            html += `<span class="diff-line-content">${rightContent || '&nbsp;'}</span>`;
-            html += `</div>`;
-            if (mergeMode) {
-                html += `<div class="merge-actions">`;
-                if (leftType === 'deleted' || rightType === 'added') {
-                    html += `<button class="merge-accept" data-row="${i}" title="接受修改">✓</button>`;
-                    html += `<button class="merge-reject" data-row="${i}" title="拒绝修改">✗</button>`;
-                }
-                html += `</div>`;
-            }
-            html += `</div>`;
+            html += _renderDiffRow(rows[i], i, mode, hl, mergeMode);
         }
-
         if (hiddenStart !== -1) {
-            const hiddenCount = totalRows - hiddenStart;
-            const foldHeight = hiddenCount * LINE_HEIGHT;
-            html += `<div class="diff-fold" data-start="${hiddenStart}" data-end="${totalRows}" data-lines="${hiddenCount}" data-gen="${currentDiffGeneration}" style="height:${foldHeight}px">`;
-            html += `⋯ ${hiddenCount} 行未变化内容（点击展开）`;
-            html += `</div>`;
+            html += _renderFoldHTML(hiddenStart, rows.length, rows.length - hiddenStart, currentDiffGeneration);
         }
-
         return html;
     }
 
@@ -614,10 +616,11 @@ const DiffEngine = (() => {
     return {
         LINE_HEIGHT,
         CONFIG,
-        diffLines, diffWords, diffChars, diffJson,
-        buildSideBySide, buildUnified,
+        computeRawDiff,
+        buildSideBySide, buildSideBySideFromRaw,
+        buildUnified, buildUnifiedFromRaw,
         highlightInlineChanges, escapeHtml,
-        syntaxHighlight, detectLanguage,
+        syntaxHighlight, syntaxHighlightLines, detectLanguage,
         render, renderSideBySide, renderUnified,
         expandFold, buildMergedText
     };

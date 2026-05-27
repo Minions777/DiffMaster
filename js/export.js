@@ -80,6 +80,152 @@ const ExportManager = (() => {
         URL.revokeObjectURL(a.href);
     }
 
+    // --- exportAsImage helper functions (module-level) ---
+
+    function _buildTextPanelHTML(lines, LH, textColor) {
+        const numWidth = 40;
+        let html = '';
+        for (let i = 0; i < lines.length; i++) {
+            const escaped = DiffEngine.escapeHtml(lines[i]);
+            html += '<div style="display:flex;align-items:center;height:' + LH + 'px;box-sizing:border-box;">' +
+                '<span style="width:' + numWidth + 'px;min-width:' + numWidth + 'px;text-align:right;padding:0 6px;color:#8c959f;font-size:11px;user-select:none;border-right:1px solid rgba(0,0,0,0.1);box-sizing:border-box;">' + (i + 1) + '</span>' +
+                '<span style="flex:1;padding:0 12px;white-space:pre;overflow:hidden;color:' + textColor + ';box-sizing:border-box;">' + (escaped || '&nbsp;') + '</span>' +
+            '</div>';
+        }
+        return html;
+    }
+
+    function _buildSideBySidePanelHTML(ctx) {
+        const { rows, LH, mode, lang, textColor } = ctx;
+        if (!rows || rows.length === 0) return '<div style="padding:8px;">无差异</div>';
+        const showRow = new Array(rows.length).fill(false);
+        const contextLines = 3;
+        for (let i = 0; i < rows.length; i++) {
+            if (rows[i].left.type !== 'unchanged' || rows[i].right.type !== 'unchanged') {
+                for (let j = Math.max(0, i - contextLines); j <= Math.min(rows.length - 1, i + contextLines); j++) showRow[j] = true;
+            }
+        }
+        const useHighlight = lang && lang !== 'auto' && lang !== 'plaintext';
+        const visibleIndices = [];
+        for (let i = 0; i < rows.length; i++) { if (showRow[i]) visibleIndices.push(i); }
+        const hlLeftTexts = [], hlRightTexts = [];
+        const hlLeftMap = new Map(), hlRightMap = new Map();
+        if (useHighlight) {
+            for (const i of visibleIndices) {
+                const { left, right } = rows[i];
+                if (mode === 'lines' || !(left.type === 'deleted' && right.type === 'added')) {
+                    hlLeftMap.set(i, hlLeftTexts.length);
+                    hlLeftTexts.push(left.text);
+                    hlRightMap.set(i, hlRightTexts.length);
+                    hlRightTexts.push(right.text);
+                }
+            }
+        }
+        const hlLeftResults = useHighlight ? DiffEngine.syntaxHighlightLines(hlLeftTexts, lang) : [];
+        const hlRightResults = useHighlight ? DiffEngine.syntaxHighlightLines(hlRightTexts, lang) : [];
+        const numWidth = 40;
+        const leftBorder = 'border-right:1px solid rgba(0,0,0,0.1)';
+        const sideWidth = '50%';
+        let html = '';
+        let hiddenStart = -1;
+        for (let i = 0; i < rows.length; i++) {
+            if (!showRow[i]) {
+                if (hiddenStart === -1) hiddenStart = i;
+                continue;
+            }
+            if (hiddenStart !== -1) {
+                html += '<div style="display:flex;align-items:center;height:' + LH + 'px;box-sizing:border-box;background:#f6f8fa;color:#6e7781;font-size:12px;' + leftBorder + '">' +
+                    '<span style="width:' + numWidth + 'px;min-width:' + numWidth + 'px;text-align:right;padding:0 6px;border-right:1px solid rgba(0,0,0,0.1);box-sizing:border-box;"></span>' +
+                    '<span style="padding:0 12px;">&#8942; ' + (i - hiddenStart) + ' 行未变化内容（点击展开）</span></div>';
+                hiddenStart = -1;
+            }
+            const { left, right } = rows[i];
+            const isModifiedPair = left.type === 'deleted' && right.type === 'added';
+            let leftContent, rightContent;
+            if (mode !== 'lines' && isModifiedPair) {
+                const inline = DiffEngine.highlightInlineChanges(left.text, right.text, mode);
+                leftContent = inline.oldHtml;
+                rightContent = inline.newHtml;
+            } else if (useHighlight) {
+                leftContent = hlLeftResults[hlLeftMap.get(i)] || '';
+                rightContent = hlRightResults[hlRightMap.get(i)] || '';
+            } else {
+                leftContent = DiffEngine.escapeHtml(left.text);
+                rightContent = DiffEngine.escapeHtml(right.text);
+            }
+            const lBg = left.type === 'added' ? 'rgba(34,211,83,0.15)' : left.type === 'deleted' ? 'rgba(255,129,130,0.15)' : '';
+            const rBg = right.type === 'added' ? 'rgba(34,211,83,0.15)' : right.type === 'deleted' ? 'rgba(255,129,130,0.15)' : '';
+            const lInd = left.type === 'deleted' ? '&#10006;' : left.type === 'added' ? '&#10004;' : '';
+            const rInd = right.type === 'added' ? '&#10004;' : right.type === 'deleted' ? '&#10006;' : '';
+            const lColor = left.type === 'deleted' ? '#cf222e' : left.type === 'added' ? '#1a7f37' : 'transparent';
+            const rColor = right.type === 'added' ? '#1a7f37' : right.type === 'deleted' ? '#cf222e' : 'transparent';
+            html += '<div style="display:flex;align-items:stretch;height:' + LH + 'px;box-sizing:border-box;">';
+            html += '<div style="width:' + sideWidth + ';display:flex;align-items:center;background:' + lBg + ';' + leftBorder + '">' +
+                '<span style="width:' + numWidth + 'px;min-width:' + numWidth + 'px;text-align:right;padding:0 6px;color:#8c959f;font-size:11px;user-select:none;border-right:1px solid rgba(0,0,0,0.1);box-sizing:border-box;">' + (left.num != null ? left.num : '') + '</span>' +
+                '<span style="width:16px;min-width:16px;text-align:center;color:' + lColor + ';box-sizing:border-box;">' + lInd + '</span>' +
+                '<span style="flex:1;padding:0 12px;white-space:pre;overflow:hidden;color:' + textColor + ';box-sizing:border-box;">' + (leftContent || '&nbsp;') + '</span></div>';
+            html += '<div style="width:' + sideWidth + ';display:flex;align-items:center;background:' + rBg + ';">' +
+                '<span style="width:' + numWidth + 'px;min-width:' + numWidth + 'px;text-align:right;padding:0 6px;color:#8c959f;font-size:11px;user-select:none;border-right:1px solid rgba(0,0,0,0.1);box-sizing:border-box;">' + (right.num != null ? right.num : '') + '</span>' +
+                '<span style="width:16px;min-width:16px;text-align:center;color:' + rColor + ';box-sizing:border-box;">' + rInd + '</span>' +
+                '<span style="flex:1;padding:0 12px;white-space:pre;overflow:hidden;color:' + textColor + ';box-sizing:border-box;">' + (rightContent || '&nbsp;') + '</span></div>';
+            html += '</div>';
+        }
+        return html;
+    }
+
+    function _buildUnifiedDiffPanelHTML(ctx) {
+        const { lines, LH, textColor } = ctx;
+        if (!lines || lines.length === 0) return '<div style="padding:8px;">无差异</div>';
+        const numWidth = 40;
+        let html = '';
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const bg = line.type === 'added' ? 'rgba(34,211,83,0.15)' : line.type === 'deleted' ? 'rgba(255,129,130,0.15)' : '';
+            const indicator = line.type === 'added' ? '+' : line.type === 'deleted' ? '-' : ' ';
+            const indColor = line.type === 'added' ? '#1a7f37' : line.type === 'deleted' ? '#cf222e' : '#8c959f';
+            html += '<div style="display:flex;align-items:center;height:' + LH + 'px;box-sizing:border-box;background:' + bg + ';border-bottom:1px solid rgba(0,0,0,0.05);">' +
+                '<span style="width:' + numWidth + 'px;min-width:' + numWidth + 'px;text-align:right;padding:0 6px;color:#8c959f;font-size:11px;user-select:none;border-right:1px solid rgba(0,0,0,0.1);box-sizing:border-box;">' + (line.num != null ? line.num : '') + '</span>' +
+                '<span style="width:16px;min-width:16px;text-align:center;color:' + indColor + ';box-sizing:border-box;">' + indicator + '</span>' +
+                '<span style="flex:1;padding:0 12px;white-space:pre;overflow:hidden;color:' + textColor + ';box-sizing:border-box;">' + (DiffEngine.escapeHtml(line.text) || '&nbsp;') + '</span></div>';
+        }
+        return html;
+    }
+
+    function _captureImage(wrapper, bgColor, lib) {
+        const totalWidth = wrapper.scrollWidth;
+        const totalHeight = wrapper.scrollHeight;
+        return lib(wrapper, {
+            backgroundColor: bgColor, scale: 2, useCORS: true, logging: false,
+            width: totalWidth, height: totalHeight,
+            windowWidth: totalWidth, windowHeight: totalHeight,
+            scrollWidth: totalWidth, scrollHeight: totalHeight,
+            x: 0, y: 0, ignoreElements: () => false,
+        });
+    }
+
+    function _buildImageWrapper(els, ctx, bgColor, fontMono, LH) {
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'position:fixed;top:0;left:-99999px;display:flex;flex-direction:row;width:100%;background:' + bgColor + ';font-family:' + fontMono + ';font-size:13px;line-height:' + LH + 'px;visibility:hidden;pointer-events:none;';
+        document.body.appendChild(wrapper);
+        wrapper.getBoundingClientRect();
+
+        const origDiv = document.createElement('div');
+        origDiv.style.cssText = 'flex:1;min-width:0;overflow:visible;padding:8px 0;box-sizing:border-box;border-right:1px solid rgba(0,0,0,0.1);';
+        origDiv.innerHTML = _buildTextPanelHTML(els.originalText.value.split('\n'), LH, ctx.textColor);
+        wrapper.appendChild(origDiv);
+
+        const diffDiv = document.createElement('div');
+        diffDiv.style.cssText = 'flex:1.5;min-width:0;overflow:visible;padding:8px 0;box-sizing:border-box;background:' + bgColor + ';';
+        diffDiv.innerHTML = ctx.view === 'unified' ? _buildUnifiedDiffPanelHTML(ctx) : _buildSideBySidePanelHTML(ctx);
+        wrapper.appendChild(diffDiv);
+
+        const modDiv = document.createElement('div');
+        modDiv.style.cssText = 'flex:1;min-width:0;overflow:visible;padding:8px 0;box-sizing:border-box;border-left:1px solid rgba(0,0,0,0.1);';
+        modDiv.innerHTML = _buildTextPanelHTML(els.modifiedText.value.split('\n'), LH, ctx.textColor);
+        wrapper.appendChild(modDiv);
+        return wrapper;
+    }
+
     function exportAsImage() {
         const data = _deps.getCurrentDiffData();
         if (!data) { _deps.showToast('请先进行对比', 'error'); return; }
@@ -89,172 +235,16 @@ const ExportManager = (() => {
 
         _deps.showToast('正在生成图片...', '');
 
-        const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--bg-primary').trim() || '#ffffff';
-        const fontMono = getComputedStyle(document.documentElement).getPropertyValue('--font-mono').trim() || 'monospace';
-        const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim() || '#24292f';
+        const cs = getComputedStyle(document.documentElement);
+        const bgColor = cs.getPropertyValue('--bg-primary').trim() || '#ffffff';
+        const fontMono = cs.getPropertyValue('--font-mono').trim() || 'monospace';
+        const textColor = cs.getPropertyValue('--text-primary').trim() || '#24292f';
         const LH = DiffEngine.CONFIG.LINE_HEIGHT;
-        const mode = data.mode;
-        const view = data.view;
         const lang = document.getElementById('syntaxLang')?.value || 'auto';
-        const els = _deps.els;
+        const ctx = { rows: data.rows, lines: data.lines, LH, mode: data.mode, view: data.view, lang, textColor };
+        const wrapper = _buildImageWrapper(_deps.els, ctx, bgColor, fontMono, LH);
 
-        const wrapper = document.createElement('div');
-        wrapper.style.cssText = 'position:fixed;top:0;left:-99999px;display:flex;flex-direction:row;width:100%;background:' + bgColor + ';font-family:' + fontMono + ';font-size:13px;line-height:' + LH + 'px;visibility:hidden;pointer-events:none;';
-        document.body.appendChild(wrapper);
-        wrapper.getBoundingClientRect();
-
-        function buildTextPanelHTML(lines) {
-            const numWidth = 40;
-            let html = '';
-            for (let i = 0; i < lines.length; i++) {
-                const lineNum = i + 1;
-                const escaped = DiffEngine.escapeHtml(lines[i]);
-                html += '<div style="display:flex;align-items:center;height:' + LH + 'px;box-sizing:border-box;">' +
-                    '<span style="width:' + numWidth + 'px;min-width:' + numWidth + 'px;text-align:right;padding:0 6px;color:#8c959f;font-size:11px;user-select:none;border-right:1px solid rgba(0,0,0,0.1);box-sizing:border-box;">' + lineNum + '</span>' +
-                    '<span style="flex:1;padding:0 12px;white-space:pre;overflow:hidden;color:' + textColor + ';box-sizing:border-box;">' + (escaped || '&nbsp;') + '</span>' +
-                '</div>';
-            }
-            return html;
-        }
-
-        function buildSideBySidePanelHTML() {
-            const rows = data.rows;
-            if (!rows || rows.length === 0) return '<div style="padding:8px;">无差异</div>';
-            const showRow = new Array(rows.length).fill(false);
-            const contextLines = 3;
-            for (let i = 0; i < rows.length; i++) {
-                if (rows[i].left.type !== 'unchanged' || rows[i].right.type !== 'unchanged') {
-                    const start = Math.max(0, i - contextLines);
-                    for (let j = start; j <= Math.min(rows.length - 1, i + contextLines); j++) showRow[j] = true;
-                }
-            }
-            const useHighlight = lang && lang !== 'auto' && lang !== 'plaintext';
-            const visibleIndices = [];
-            for (let i = 0; i < rows.length; i++) { if (showRow[i]) visibleIndices.push(i); }
-            const hlLeftTexts = [], hlRightTexts = [];
-            const hlLeftMap = new Map(), hlRightMap = new Map();
-            if (useHighlight) {
-                for (const i of visibleIndices) {
-                    const { left, right } = rows[i];
-                    const isModifiedPair = left.type === 'deleted' && right.type === 'added';
-                    if (mode === 'lines' || !isModifiedPair) {
-                        hlLeftMap.set(i, hlLeftTexts.length);
-                        hlLeftTexts.push(left.text);
-                        hlRightMap.set(i, hlRightTexts.length);
-                        hlRightTexts.push(right.text);
-                    }
-                }
-            }
-            const hlLeftResults = useHighlight ? DiffEngine.syntaxHighlightLines(hlLeftTexts, lang) : [];
-            const hlRightResults = useHighlight ? DiffEngine.syntaxHighlightLines(hlRightTexts, lang) : [];
-            const numWidth = 40;
-            const leftBorder = 'border-right:1px solid rgba(0,0,0,0.1)';
-            const sideWidth = '50%';
-            let html = '';
-            let hiddenStart = -1;
-            for (let i = 0; i < rows.length; i++) {
-                if (!showRow[i]) {
-                    if (hiddenStart === -1) hiddenStart = i;
-                    continue;
-                }
-                if (hiddenStart !== -1) {
-                    const hiddenCount = i - hiddenStart;
-                    html += '<div style="display:flex;align-items:center;height:' + LH + 'px;box-sizing:border-box;background:#f6f8fa;color:#6e7781;font-size:12px;' + leftBorder + '">' +
-                        '<span style="width:' + numWidth + 'px;min-width:' + numWidth + 'px;text-align:right;padding:0 6px;border-right:1px solid rgba(0,0,0,0.1);box-sizing:border-box;"></span>' +
-                        '<span style="padding:0 12px;">&#8942; ' + hiddenCount + ' 行未变化内容（点击展开）</span>' +
-                    '</div>';
-                    hiddenStart = -1;
-                }
-                const { left, right } = rows[i];
-                const isModifiedPair = left.type === 'deleted' && right.type === 'added';
-                let leftContent, rightContent;
-                if (mode !== 'lines' && isModifiedPair) {
-                    const inline = DiffEngine.highlightInlineChanges(left.text, right.text, mode);
-                    leftContent = inline.oldHtml;
-                    rightContent = inline.newHtml;
-                } else if (useHighlight) {
-                    leftContent = hlLeftResults[hlLeftMap.get(i)] || '';
-                    rightContent = hlRightResults[hlRightMap.get(i)] || '';
-                } else {
-                    leftContent = DiffEngine.escapeHtml(left.text);
-                    rightContent = DiffEngine.escapeHtml(right.text);
-                }
-                const leftType = left.type;
-                const rightType = right.type;
-                const leftBg = leftType === 'added' ? 'rgba(34,211,83,0.15)' : leftType === 'deleted' ? 'rgba(255,129,130,0.15)' : '';
-                const rightBg = rightType === 'added' ? 'rgba(34,211,83,0.15)' : rightType === 'deleted' ? 'rgba(255,129,130,0.15)' : '';
-                const leftIndicator = leftType === 'deleted' ? '&#10006;' : leftType === 'added' ? '&#10004;' : '';
-                const rightIndicator = rightType === 'added' ? '&#10004;' : rightType === 'deleted' ? '&#10006;' : '';
-                html += '<div style="display:flex;align-items:stretch;height:' + LH + 'px;box-sizing:border-box;">';
-                html += '<div style="width:' + sideWidth + ';display:flex;align-items:center;background:' + leftBg + ';' + leftBorder + '">' +
-                    '<span style="width:' + numWidth + 'px;min-width:' + numWidth + 'px;text-align:right;padding:0 6px;color:#8c959f;font-size:11px;user-select:none;border-right:1px solid rgba(0,0,0,0.1);box-sizing:border-box;">' + (left.num != null ? left.num : '') + '</span>' +
-                    '<span style="width:16px;min-width:16px;text-align:center;color:' + (leftType === 'deleted' ? '#cf222e' : leftType === 'added' ? '#1a7f37' : 'transparent') + ';box-sizing:border-box;">' + leftIndicator + '</span>' +
-                    '<span style="flex:1;padding:0 12px;white-space:pre;overflow:hidden;color:' + textColor + ';box-sizing:border-box;">' + (leftContent || '&nbsp;') + '</span>' +
-                '</div>';
-                html += '<div style="width:' + sideWidth + ';display:flex;align-items:center;background:' + rightBg + ';">' +
-                    '<span style="width:' + numWidth + 'px;min-width:' + numWidth + 'px;text-align:right;padding:0 6px;color:#8c959f;font-size:11px;user-select:none;border-right:1px solid rgba(0,0,0,0.1);box-sizing:border-box;">' + (right.num != null ? right.num : '') + '</span>' +
-                    '<span style="width:16px;min-width:16px;text-align:center;color:' + (rightType === 'added' ? '#1a7f37' : rightType === 'deleted' ? '#cf222e' : 'transparent') + ';box-sizing:border-box;">' + rightIndicator + '</span>' +
-                    '<span style="flex:1;padding:0 12px;white-space:pre;overflow:hidden;color:' + textColor + ';box-sizing:border-box;">' + (rightContent || '&nbsp;') + '</span>' +
-                '</div>';
-                html += '</div>';
-            }
-            return html;
-        }
-
-        function buildUnifiedDiffPanelHTML() {
-            const lines = data.lines;
-            if (!lines || lines.length === 0) return '<div style="padding:8px;">无差异</div>';
-            const numWidth = 40;
-            let html = '';
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                const bg = line.type === 'added' ? 'rgba(34,211,83,0.15)' : line.type === 'deleted' ? 'rgba(255,129,130,0.15)' : '';
-                const indicator = line.type === 'added' ? '+' : line.type === 'deleted' ? '-' : ' ';
-                const text = DiffEngine.escapeHtml(line.text);
-                html += '<div style="display:flex;align-items:center;height:' + LH + 'px;box-sizing:border-box;background:' + bg + ';border-bottom:1px solid rgba(0,0,0,0.05);">' +
-                    '<span style="width:' + numWidth + 'px;min-width:' + numWidth + 'px;text-align:right;padding:0 6px;color:#8c959f;font-size:11px;user-select:none;border-right:1px solid rgba(0,0,0,0.1);box-sizing:border-box;">' + (line.num != null ? line.num : '') + '</span>' +
-                    '<span style="width:16px;min-width:16px;text-align:center;color:' + (line.type === 'added' ? '#1a7f37' : line.type === 'deleted' ? '#cf222e' : '#8c959f') + ';box-sizing:border-box;">' + indicator + '</span>' +
-                    '<span style="flex:1;padding:0 12px;white-space:pre;overflow:hidden;color:' + textColor + ';box-sizing:border-box;">' + (text || '&nbsp;') + '</span>' +
-                '</div>';
-            }
-            return html;
-        }
-
-        const origLines = els.originalText.value.split('\n');
-        const origDiv = document.createElement('div');
-        origDiv.style.cssText = 'flex:1;min-width:0;overflow:visible;padding:8px 0;box-sizing:border-box;border-right:1px solid rgba(0,0,0,0.1);';
-        origDiv.innerHTML = buildTextPanelHTML(origLines);
-        wrapper.appendChild(origDiv);
-
-        const diffDiv = document.createElement('div');
-        diffDiv.style.cssText = 'flex:1.5;min-width:0;overflow:visible;padding:8px 0;box-sizing:border-box;background:' + bgColor + ';';
-        diffDiv.innerHTML = view === 'unified' ? buildUnifiedDiffPanelHTML() : buildSideBySidePanelHTML();
-        wrapper.appendChild(diffDiv);
-
-        const modLines = els.modifiedText.value.split('\n');
-        const modDiv = document.createElement('div');
-        modDiv.style.cssText = 'flex:1;min-width:0;overflow:visible;padding:8px 0;box-sizing:border-box;border-left:1px solid rgba(0,0,0,0.1);';
-        modDiv.innerHTML = buildTextPanelHTML(modLines);
-        wrapper.appendChild(modDiv);
-
-        const totalWidth = wrapper.scrollWidth;
-        const totalHeight = wrapper.scrollHeight;
-
-        lib(wrapper, {
-            backgroundColor: bgColor,
-            scale: 2,
-            useCORS: true,
-            logging: false,
-            width: totalWidth,
-            height: totalHeight,
-            windowWidth: totalWidth,
-            windowHeight: totalHeight,
-            scrollWidth: totalWidth,
-            scrollHeight: totalHeight,
-            x: 0,
-            y: 0,
-            ignoreElements: () => false,
-        }).then(canvas => {
+        _captureImage(wrapper, bgColor, lib).then(canvas => {
             const cleanup = () => { if (wrapper.parentNode) wrapper.parentNode.removeChild(wrapper); };
             canvas.toBlob(blob => {
                 try {
@@ -265,9 +255,7 @@ const ExportManager = (() => {
                     a.click();
                     URL.revokeObjectURL(a.href);
                     _deps.showToast('图片已导出', 'success');
-                } finally {
-                    cleanup();
-                }
+                } finally { cleanup(); }
             }, 'image/png');
         }).catch(() => {
             _deps.showToast('图片导出失败', 'error');

@@ -42,9 +42,10 @@ const FindReplace = (() => {
             const pattern = isRegex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const re = new RegExp(pattern, flags);
             let m;
+            const deadline = Date.now() + 500; // 500ms max for ReDoS protection
             while ((m = re.exec(text)) !== null) {
                 matches.push({ start: m.index, end: m.index + m[0].length });
-                if (matches.length > 10000) break;
+                if (matches.length > 10000 || Date.now() > deadline) break;
             }
         } catch { /* invalid regex */ }
 
@@ -88,8 +89,18 @@ const FindReplace = (() => {
             const isRegex = findInput.dataset && findInput.dataset.regex === 'true';
             const flags = findCase.checked ? 'g' : 'gi';
             const pattern = isRegex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            textarea.value = textarea.value.replace(new RegExp(pattern, flags), replacement);
-            return true; // signal that content changed
+            try {
+                const re = new RegExp(pattern, flags);
+                // ReDoS guard: test on a small sample before full replace
+                const sample = textarea.value.substring(0, 1000);
+                const deadline = Date.now() + 500;
+                re.test(sample);
+                if (Date.now() > deadline) return false;
+                textarea.value = textarea.value.replace(re, replacement);
+            } catch { return false; }
+            // Re-search to update match count after replace-all
+            _doFind(side, textarea, findInput, findCase, countEl);
+            return true;
         } else {
             const match = _matches[side][_index[side]];
             if (!match) return false;
@@ -100,15 +111,17 @@ const FindReplace = (() => {
 
     // Public API – factory-style to avoid global element dependency
     function createForSide(side, textarea, findBar, findInput, replaceInput, findCase, countEl) {
+        const ac = new AbortController();
+        const sig = { signal: ac.signal };
         const debouncedFind = debounce(() => _doFind(side, textarea, findInput, findCase, countEl), 150);
 
-        findInput.addEventListener('input', debouncedFind);
+        findInput.addEventListener('input', debouncedFind, sig);
         findInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.shiftKey ? _prev(side, textarea, countEl) : _next(side, textarea, countEl);
             }
-        });
-        findCase.addEventListener('change', () => _doFind(side, textarea, findInput, findCase, countEl));
+        }, sig);
+        findCase.addEventListener('change', () => _doFind(side, textarea, findInput, findCase, countEl), sig);
 
         return {
             open: () => open(side, textarea, findBar, findInput, findCase, countEl),
@@ -118,6 +131,7 @@ const FindReplace = (() => {
             replace: (all) => replace(side, all, textarea, findInput, replaceInput, findCase, countEl),
             getMatches: () => _matches[side],
             getIndex: () => _index[side],
+            destroy: () => { ac.abort(); _matches[side] = []; _index[side] = -1; },
         };
     }
 
